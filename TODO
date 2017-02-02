@@ -1,0 +1,40 @@
+- ucitavanje: zapamtiti od - do od prethodnog kanala
+
+- ucitavanje: ako vremenski interval nije dozvoljen ne zatvarati dijalog nego tražiti ponovni unos vremena
+
+- rectangle zoom ne radi ako je pocetak prije prvog podatka
+
+- ne radi prikaz korigiranih spana i zero-a
+
+- PM10 Slavonski Brod 2, ne može primijeniti korekciju, vjerojatno je problem što nema zero-a i spana
+
+- uz delete gumb dodati još i gumb na kalkulator A i B. Otvara se popup i traži se unos:
+s0, z0, s1, z1, A i B. Defaultne vrijednosti:
+s0 = s1 = A = 1.
+z0 = z1 = B = 0.
+Ovo je r funkcija koja računa:
+calcab<-function(s0=s0,z0=z0,s1=s1,z1=z1,ab=c(1,0)){
+  a<-(s0-z0)/(s1-z1)
+  b<-z0-a*z1
+  aa<-a*ab[1]
+  bb<-ab[1]*b+ab[2]
+  c(aa,bb)
+}
+
+
+- spremanje trenutnog stanja (rada)
+
+- Y zoom
+
+- kod primjene korekcije ne mijenjati zoom
+
+- shift left mouse - pan
+
+- control left mouse - rectangle zooom
+
+- shift+control left mouse - selekcija za valjan/nevaljan
+
+- proizvodnja satnih (podatak valjan ako je obuhvat > 75%, minutni nevaljani ako su proglašeni nevaljanima u aplikaciji ili ako im je status >= 1024). Ako podatak nedostaje dobiva status 32768)
+
+- proizvodnja dnevnih (iz valjanih satnih, ako je više od 16 podataka u danu, satni je valjan, ako je > 12 onda ne smije biti više od 6 uzastopnih nedostajućih podataka)
+
