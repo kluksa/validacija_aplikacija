@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from PyQt4 import QtGui, QtCore
 
+
 ################################################################################
 ################################################################################
 class TreeItem(object):
@@ -15,6 +16,7 @@ class TreeItem(object):
     self._children --> LISTA djece (svi child itemi su TreeItem objekti)
     self._data --> kontenjer koji sadrzi neke podatke (npr, lista, dict...)
     """
+
     def __init__(self, data, parent=None):
         self._parent = parent
         self._data = data
@@ -28,7 +30,7 @@ class TreeItem(object):
         """
         return self._children[row]
 
-    def childCount(self):
+    def child_count(self):
         """
         ukupan broj child itema
         """
@@ -73,6 +75,8 @@ class TreeItem(object):
         npr. ako je spremnik integer vrijednost ovo nece raditi
         """
         return str(self.data(0))
+
+
 ################################################################################
 ################################################################################
 class ModelDrva(QtCore.QAbstractItemModel):
@@ -82,6 +86,7 @@ class ModelDrva(QtCore.QAbstractItemModel):
     Za inicijalizaciju modela bitno je prosljediti root item neke tree strukture
     koja se sastoji od TreeItem instanci.
     """
+
     def __init__(self, data, parent=None):
         QtCore.QAbstractItemModel.__init__(self, parent)
         self.rootItem = data
@@ -137,7 +142,7 @@ class ModelDrva(QtCore.QAbstractItemModel):
         vrati broj redaka (children objekata) za parent
         """
         parentItem = self.getItem(parent)
-        return parentItem.childCount()
+        return parentItem.child_count()
 
     def columnCount(self, parent=QtCore.QModelIndex()):
         """
@@ -169,6 +174,8 @@ class ModelDrva(QtCore.QAbstractItemModel):
         if orientation == QtCore.Qt.Horizontal and role == QtCore.Qt.DisplayRole:
             return headeri[section]
         return None
+
+
 ################################################################################
 ################################################################################
 class KoncFrameModel(QtCore.QAbstractTableModel):
@@ -179,9 +186,10 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
     .kanalMeta - mapa metapodataka o kanalu
     .timestep - vremenski razmak izmedju podataka
     """
+
     def __init__(self, frejm=None, parent=None):
         QtCore.QAbstractTableModel.__init__(self, parent)
-        self._expectedCols = ['koncentracija',  'korekcija', 'flag', 'statusString', 'status', 'id']
+        self._expectedCols = ['koncentracija', 'korekcija', 'flag', 'statusString', 'status', 'id']
         self._dataFrejm = pd.DataFrame(columns=self._expectedCols)
         self._opis = "Postaja , naziv formula ( mjerna jedinica )"
         self._kanalMeta = {}
@@ -196,7 +204,7 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
     @datafrejm.setter
     def datafrejm(self, x):
         if isinstance(x, pd.core.frame.DataFrame):
-            self._dataFrejm = x[self._expectedCols] #reodrer / crop columns
+            self._dataFrejm = x[self._expectedCols]  # reodrer / crop columns
             self.layoutChanged.emit()
         else:
             raise TypeError('Not a pandas DataFrame object'.format(type(x)))
@@ -216,11 +224,11 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
     def timestep(self):
         try:
             indeksi = self._dataFrejm.index
-            step = round((indeksi[1]-indeksi[0]).total_seconds(), 0)
+            step = round((indeksi[1] - indeksi[0]).total_seconds(), 0)
             return step
         except Exception as err:
             logging.error(str(err), exc_info=True)
-            return 60 #round na minutu
+            return 60  # round na minutu
 
     @property
     def kanalMeta(self):
@@ -237,29 +245,29 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
     def rasponi(self):
         if 'LDL' in self._dataFrejm.columns:
             indeks = self._dataFrejm.index
-            ispod = self._dataFrejm.loc[:,'korekcija'] < self._dataFrejm.loc[:,'LDL']
-            preko = self._dataFrejm.loc[:,'korekcija'] > self._dataFrejm.loc[:,'LDL']
+            ispod = self._dataFrejm.loc[:, 'korekcija'] < self._dataFrejm.loc[:, 'LDL']
+            preko = self._dataFrejm.loc[:, 'korekcija'] > self._dataFrejm.loc[:, 'LDL']
             krivi = [i or j for i, j in zip(ispod, preko)]
 
             pos = 0
             out = []
             while pos < len(indeks):
-                #get prvi True (prekoracenje)
+                # get prvi True (prekoracenje)
                 try:
                     loc1 = krivi.index(True, pos)
                     pos = loc1
-                    #get prvi false nakon pronadjeng indeksa
+                    # get prvi false nakon pronadjeng indeksa
                     try:
                         loc2 = krivi.index(False, pos)
                         pos = loc2
                         out.append((indeks[loc1], indeks[loc2]))
                     except ValueError:
-                        #svi su krivi do kraja
-                        loc2 = len(indeks)-1
+                        # svi su krivi do kraja
+                        loc2 = len(indeks) - 1
                         out.append((indeks[loc1], indeks[loc2]))
                         break
                 except ValueError:
-                    #nema prekoracenja, break iz while petlje
+                    # nema prekoracenja, break iz while petlje
                     break
             return out
         else:
@@ -289,7 +297,7 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
             red = indeksi.get_loc(tajmstemp)
             return red
         except KeyError as err:
-            logging.error(str(err), exc_info = True)
+            logging.error(str(err), exc_info=True)
 
     def promjeni_flag(self, argDict):
         """promjena flaga na intervalu, argDict je dict [od, do, noviFlag]"""
@@ -300,7 +308,7 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
         self.layoutChanged.emit()
 
     def update_korekciju_i_ldl(self, kor, ldl, a, b, sr):
-        #TODO!
+        # TODO!
         self._dataFrejm['korekcija'] = kor
         self._dataFrejm['LDL'] = ldl
         self._dataFrejm['A'] = a
@@ -308,7 +316,7 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
         self._dataFrejm['Sr'] = sr
         self.layoutChanged.emit()
 
-    #QT functionality
+    # QT functionality
     def rowCount(self, parent=QtCore.QModelIndex()):
         return len(self._dataFrejm)
 
@@ -327,11 +335,11 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
         if role == QtCore.Qt.DisplayRole:
             value = self._dataFrejm.iloc[row, col]
             if col == 0:
-                return str(round(value, 3)) #koncentracija
+                return str(round(value, 3))  # koncentracija
             elif col == 1:
-                return str(round(value, 3)) #korekcija
+                return str(round(value, 3))  # korekcija
             elif col == 3:
-                return value #status string
+                return value  # status string
             else:
                 return str(value)
 
@@ -342,6 +350,8 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
         if orientation == QtCore.Qt.Horizontal:
             if role == QtCore.Qt.DisplayRole:
                 return str(self._dataFrejm.columns[section])
+
+
 ################################################################################
 ################################################################################
 class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
@@ -349,6 +359,7 @@ class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
     properties
     .datafrejm - frejm sa podacima
     """
+
     def __init__(self, tip, frejm=None, parent=None):
         QtCore.QAbstractTableModel.__init__(self, parent)
         self._expectedCols = [str(tip), 'korekcija', 'minDozvoljeno', 'maxDozvoljeno']
@@ -364,15 +375,15 @@ class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
     @datafrejm.setter
     def datafrejm(self, x):
         if isinstance(x, pd.core.frame.DataFrame):
-            self._dataFrejm = x[self._expectedCols] #reodrer / crop columns
+            self._dataFrejm = x[self._expectedCols]  # reodrer / crop columns
             self.layoutChanged.emit()
         else:
             raise TypeError('Not a pandas DataFrame object'.format(type(x)))
 
     @property
     def bad_index(self):
-        ispod = self._dataFrejm.loc[:,'korekcija'] < self._dataFrejm.loc[:,'minDozvoljeno']
-        preko = self._dataFrejm.loc[:,'korekcija'] > self._dataFrejm.loc[:,'maxDozvoljeno']
+        ispod = self._dataFrejm.loc[:, 'korekcija'] < self._dataFrejm.loc[:, 'minDozvoljeno']
+        preko = self._dataFrejm.loc[:, 'korekcija'] > self._dataFrejm.loc[:, 'maxDozvoljeno']
         krivi = [i or j for i, j in zip(ispod, preko)]
         return krivi
 
@@ -385,36 +396,36 @@ class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
     @property
     def rasponi(self):
         indeks = self._dataFrejm.index
-        ispod = self._dataFrejm.loc[:,'korekcija'] < self._dataFrejm.loc[:,'minDozvoljeno']
-        preko = self._dataFrejm.loc[:,'korekcija'] > self._dataFrejm.loc[:,'maxDozvoljeno']
+        ispod = self._dataFrejm.loc[:, 'korekcija'] < self._dataFrejm.loc[:, 'minDozvoljeno']
+        preko = self._dataFrejm.loc[:, 'korekcija'] > self._dataFrejm.loc[:, 'maxDozvoljeno']
         krivi = [i or j for i, j in zip(ispod, preko)]
 
         pos = 0
         out = []
         while pos < len(indeks):
-            #get prvi True (prekoracenje)
+            # get prvi True (prekoracenje)
             try:
                 loc1 = krivi.index(True, pos)
                 pos = loc1
-                #get prvi false nakon pronadjeng indeksa
+                # get prvi false nakon pronadjeng indeksa
                 try:
                     loc2 = krivi.index(False, pos)
                     pos = loc2
                     out.append((indeks[loc1], indeks[loc2]))
                 except ValueError:
-                    #svi su krivi do kraja
-                    loc2 = len(indeks)-1
+                    # svi su krivi do kraja
+                    loc2 = len(indeks) - 1
                     out.append((indeks[loc1], indeks[loc2]))
                     break
             except ValueError:
-                #nema prekoracenja, break iz while petlje
+                # nema prekoracenja, break iz while petlje
                 break
         return out
 
     def get_najblizu_vrijednost(self, tajm):
         """getter najblize vijednosti zero ili span vremenskom indeksu tajm (pd.tslib.Timestamp)"""
-        #svi manji ili jednaki od tajm
-        #TODO!
+        # svi manji ili jednaki od tajm
+        # TODO!
         manji = self._dataFrejm[self._dataFrejm.index <= tajm]
         if len(manji):
             t1 = manji.index[-1]
@@ -422,7 +433,7 @@ class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
         else:
             t1 = None
             v1 = None
-        #svi veci od tajm
+        # svi veci od tajm
         veci = self._dataFrejm[self._dataFrejm.index > tajm]
         if len(veci):
             t2 = veci.index[0]
@@ -457,7 +468,7 @@ class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
             return np.NaN, np.NaN
 
     def update_korekciju_i_ldl(self, kor, ldl, a, b, sr):
-        #TODO!
+        # TODO!
         self._dataFrejm['korekcija'] = kor
         self._dataFrejm['LDL'] = ldl
         self._dataFrejm['A'] = a
@@ -465,7 +476,7 @@ class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
         self._dataFrejm['Sr'] = sr
         self.layoutChanged.emit()
 
-    #QT functionality
+    # QT functionality
     def rowCount(self, parent=QtCore.QModelIndex()):
         return len(self._dataFrejm)
 
@@ -492,12 +503,14 @@ class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
         if orientation == QtCore.Qt.Horizontal:
             if role == QtCore.Qt.DisplayRole:
                 return str(self._dataFrejm.columns[section])
+
+
 ################################################################################
 ################################################################################
 class KorekcijaFrameModel(QtCore.QAbstractTableModel):
     def __init__(self, frejm=None, parent=None):
         QtCore.QAbstractTableModel.__init__(self, parent)
-        self._dummydata = {'vrijeme':'', 'A':np.NaN, 'B':np.NaN, 'Sr':np.NaN, 'remove':''}
+        self._dummydata = {'vrijeme': '', 'A': np.NaN, 'B': np.NaN, 'Sr': np.NaN, 'remove': ''}
         self._expectedCols = ['vrijeme', 'A', 'B', 'Sr', 'remove']
         self._dataFrejm = pd.DataFrame(columns=self._expectedCols)
         if frejm is None:
@@ -511,13 +524,13 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
     @datafrejm.setter
     def datafrejm(self, x):
         if isinstance(x, pd.core.frame.DataFrame):
-            self._dataFrejm = x[self._expectedCols] #reodrer / crop columns
-            #dodaj prazan red na kraj
+            self._dataFrejm = x[self._expectedCols]  # reodrer / crop columns
+            # dodaj prazan red na kraj
             red = pd.DataFrame(data=self._dummydata,
                                columns=self._expectedCols,
                                index=[len(self._dataFrejm)])
             self._dataFrejm = self._dataFrejm.append(red)
-            #reindex
+            # reindex
             self._dataFrejm.reset_index()
             self.layoutChanged.emit()
         else:
@@ -534,34 +547,34 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
     def get_frejm_za_korekciju(self, indeksi):
         """getter frejma sa interpoliranim vrijednostima korekcije"""
         df = self._dataFrejm.copy()
-        #izbaci zadnji red (za dodavanje stvari...)
+        # izbaci zadnji red (za dodavanje stvari...)
         df = df.iloc[:-1, :]
-        #sort
+        # sort
         df.dropna(axis=0, inplace=True)
         df.sort_values(['vrijeme'], inplace=True)
         df.drop(['remove'], axis=1, inplace=True)
         if len(df):
-            #set indeks vrijeme & remove stupac 'vrijeme'...
+            # set indeks vrijeme & remove stupac 'vrijeme'...
             df = df.set_index(df['vrijeme'])
             df.drop(['vrijeme'], inplace=True, axis=1)
             df['A'] = df['A'].astype(float)
             df['B'] = df['B'].astype(float)
             df['Sr'] = df['Sr'].astype(float)
             zadnjiIndeks = list(df.index)[-1]
-            #sredi interpolaciju dodaj na kraj podatka zadnju vrijednost
+            # sredi interpolaciju dodaj na kraj podatka zadnju vrijednost
             krajPodataka = indeksi[-1]
             df.loc[krajPodataka, 'A'] = df.loc[zadnjiIndeks, 'A']
             df.loc[krajPodataka:, 'B'] = df.loc[zadnjiIndeks, 'B']
             df.loc[krajPodataka:, 'Sr'] = df.loc[zadnjiIndeks, 'Sr']
-            #interpoliraj na minutnu razinu
+            # interpoliraj na minutnu razinu
             df = df.resample('Min').interpolate()
             df = self.calc_ldl_values(df)
-            df = df.reindex(indeksi) #samo za definirane indekse...
+            df = df.reindex(indeksi)  # samo za definirane indekse...
             return df
         else:
             return []
 
-    #QT functionality
+    # QT functionality
     def rowCount(self, parent=QtCore.QModelIndex()):
         return len(self._dataFrejm)
 
@@ -577,7 +590,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
             self.beginInsertRows(QtCore.QModelIndex(),
                                  position,
                                  position + rows - 1)
-            #uguraj index u frejm na kraj
+            # uguraj index u frejm na kraj
             red = pd.DataFrame(data=self._dummydata,
                                columns=self._expectedCols,
                                index=[len(self._dataFrejm)])
@@ -594,16 +607,16 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
 
     def removeRows(self, position, rows=1, index=QtCore.QModelIndex()):
         try:
-            if position == self.rowCount()-1:
-                #clear red...
+            if position == self.rowCount() - 1:
+                # clear red...
                 for col in range(len(self._dataFrejm.columns)):
                     self._dataFrejm.iloc[-1, col] = ''
                 self.layoutChanged.emit()
-                return False #nemoj maknuti zadnji red NIKADA!
+                return False  # nemoj maknuti zadnji red NIKADA!
             self.beginRemoveRows(QtCore.QModelIndex(),
                                  position,
                                  position + rows - 1)
-            #drop row...
+            # drop row...
             self._dataFrejm.drop(self._dataFrejm.index[position], inplace=True)
             self._dataFrejm = self._dataFrejm.reindex()
 
@@ -622,18 +635,18 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         stupac = index.column()
         try:
             if stupac == 0:
-                #NaT fix
+                # NaT fix
                 if value == "":
                     return False
                 ts = pd.to_datetime(value)
                 self._dataFrejm.iloc[red, stupac] = ts
-                #sort index
+                # sort index
                 self._dataFrejm.sort_index()
 
-                #napravi novi redak ako se editira zadnji redak u tablici
-                if red == self.rowCount()-1:
-                    self.insertRows(123123) #dummy positional argument
-            elif stupac in [1,2,3]:
+                # napravi novi redak ako se editira zadnji redak u tablici
+                if red == self.rowCount() - 1:
+                    self.insertRows(123123)  # dummy positional argument
+            elif stupac in [1, 2, 3]:
                 self._dataFrejm.iloc[red, stupac] = float(value)
             else:
                 self._dataFrejm.iloc[red, stupac] = str(value)
@@ -666,6 +679,8 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         if orientation == QtCore.Qt.Horizontal:
             if role == QtCore.Qt.DisplayRole:
                 return str(self._dataFrejm.columns[section])
+
+
 ################################################################################
 ################################################################################
 class GumbDelegate(QtGui.QItemDelegate):
@@ -682,14 +697,12 @@ class GumbDelegate(QtGui.QItemDelegate):
 
     def setModelData(self, editor, model, index):
         pass
-        #model.setData(index, editor.text())
+        # model.setData(index, editor.text())
 
     def delete_or_clear_row(self, ind):
-        #glupo do bola, ali radi za sada
+        # glupo do bola, ali radi za sada
         view = self.sender().parent().parent()
         model = view.model()
         indeks = view.indexAt(self.sender().pos())
         model.removeRows(indeks.row())
         self.commitData.emit(self.sender())
-
-

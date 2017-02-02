@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from PyQt4 import QtCore, uic
 
+# REVIEW zasto je ovaj fajl tu. Ova funkcionalnost vise ne postoji dakle treba biti izbrisano
 BASE_KOREKCIJA_DIJALOG, FORM_KOREKCIJA_DIJALOG = uic.loadUiType('./app/view/ui_files/korekcija_dijalog.ui')
 class KorekcijaDijalog(BASE_KOREKCIJA_DIJALOG, FORM_KOREKCIJA_DIJALOG):
     def __init__(self, argmap, parent=None):

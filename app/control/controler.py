@@ -94,6 +94,7 @@ class Kontroler(QtGui.QWidget):
         try:
             # TODO! za export svega....
             QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+            # REVIEW ovome nije mjesto ovdje. Dokument bi trebao znati na sebi napraviti korekciju, a ne da to radi kontroler
             #dohvati relevantne modele
             model_korekcija = self.dokument.korekcijaModel
             modelZero = self.dokument.zeroModel
@@ -102,6 +103,7 @@ class Kontroler(QtGui.QWidget):
             #sredi zero
             df = modelZero.datafrejm
             dfk = model_korekcija.get_frejm_za_korekciju(df.index)
+            # REVIEW kakva je ovo duplikacija. Napravi se jedna funkcija i onda poziva za zero, span, konc!!!!!
             if len(dfk):
                 korekcija = df.loc[:,'zero'] * dfk.loc[:,'A'] + dfk.loc[:,'B']
                 ldl = dfk['LDL']
@@ -161,6 +163,7 @@ class Kontroler(QtGui.QWidget):
         print('NOT IMPLEMENTED SA RESTOM')
         try:
             QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+            # REVIEW model se serijalizira, a ne serizalizira ga GUI kontroler
 
             frejmPodaci = self.dokument.koncModel.datafrejm
             frejmZero = self.dokument.zeroModel.datafrejm
@@ -345,6 +348,7 @@ class Kontroler(QtGui.QWidget):
         finally:
             QtGui.QApplication.restoreOverrideCursor()
 
+    # REVIEW ovome nije mjesto u GUI kontroleru
     def _get_kanal_info_string(self, kanal, od, do):
         """getter stringa za naslov grafa..."""
         mapa = self.dokument.mjerenja
@@ -362,6 +366,7 @@ class Kontroler(QtGui.QWidget):
             do)
         return out
 
+    # REVIEW ovome nije mjesto u GUI kontroleru
     def _check_bit(self, broj, bit_position):
         """
         Pomocna funkcija za testiranje statusa
@@ -376,6 +381,7 @@ class Kontroler(QtGui.QWidget):
             else:
                 return False
 
+# REVIEW ovome nije mjesto u GUI kontroleru
     def _check_status_flags(self, broj):
         """
         provjeri stauts integera broj dekodirajuci ga sa hash tablicom
@@ -398,6 +404,7 @@ class Kontroler(QtGui.QWidget):
             self._statusLookup[sint] = rez #store value for future lookup
         return rez
 
+# REVIEW parsiranju nije mjesto u GUI kontroleru!!!
     def _parse_mjerenjaXML(self, x):
         """
         Parsira xml sa programima mjerenja preuzetih sa rest servisa,
