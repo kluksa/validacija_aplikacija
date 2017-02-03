@@ -381,6 +381,20 @@ class Kanvas(FigureCanvas):
         self.pickCid = self.mpl_connect('button_press_event', self.on_pick)
         self.scrollZoomCid = self.mpl_connect('scroll_event', self.scroll_zoom_along_x)
 
+        #re-emit some signals
+        self.connect(self,
+                     QtCore.SIGNAL('update_data_point_count(PyQt_PyObject)'),
+                     self.emit_graf_modified)
+        self.connect(self,
+                     QtCore.SIGNAL('point_selected(PyQt_PyObject)'),
+                     self.emit_point_selected)
+
+    def emit_graf_modified(self, mapa):
+        self.emit(QtCore.SIGNAL('graf_is_modified(PyQt_PyObject)'), mapa)
+
+    def emit_point_selected(self, red):
+        self.emit(QtCore.SIGNAL('table_select_podatak(PyQt_PyObject)'), red)
+
     def set_axes_focus(self, tip='koncentracija'):
         if tip == 'span':
             self.gs.set_height_ratios([4,1,1])
@@ -1178,22 +1192,10 @@ class GrafDisplayWidget(QtGui.QWidget):
         self.connect(self.figure_canvas,
                      QtCore.SIGNAL('push_view_to_toolbar_zoom_stack'),
                      self.navigation_toolbar.push_current)
-        #re-emit some signals
-        self.connect(self.figure_canvas,
-                     QtCore.SIGNAL('update_data_point_count(PyQt_PyObject)'),
-                     self.emit_graf_modified)
-        self.connect(self.figure_canvas,
-                     QtCore.SIGNAL('point_selected(PyQt_PyObject)'),
-                     self.emit_point_selected)
+
         self.connect(self.figure_canvas,
                      QtCore.SIGNAL('zoom_to_korekcija_table(PyQt_PyObject)'),
                      self.emit_korekcija_selected)
-
-    def emit_graf_modified(self, mapa):
-        self.emit(QtCore.SIGNAL('graf_is_modified(PyQt_PyObject)'), mapa)
-
-    def emit_point_selected(self, red):
-        self.emit(QtCore.SIGNAL('table_select_podatak(PyQt_PyObject)'), red)
 
     def emit_korekcija_selected(self, xpoint):
         self.emit(QtCore.SIGNAL('korekcija_table_select_podatak(PyQt_PyObject)'), xpoint)

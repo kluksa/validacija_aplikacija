@@ -3,7 +3,6 @@ import datetime
 from PyQt4 import QtGui, QtCore, uic
 from app.view import auth_login
 from app.view.canvas import GrafDisplayWidget
-from app.view import korekcija_dijalog
 from app.model.qtmodels import GumbDelegate
 
 MAIN_BASE, MAIN_FORM = uic.loadUiType('./app/view/ui_files/mainwindow.ui')

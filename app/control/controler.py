@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 from requests.exceptions import RequestException
 from PyQt4 import QtGui, QtCore
-import xml.etree.ElementTree as ET
 from app.model import dokument
 from app.model import konfig_objekt
 from app.control.rest_comm import RESTZahtjev
@@ -15,39 +14,26 @@ from app.view import kanal_dijalog
 
 
 class Kontroler(QtGui.QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, konfig, grafKonfig, parent=None):
         QtGui.QWidget.__init__(self, parent=None)
 
         self.kanal = None
         self.vrijemeOd = None
         self.vrijemeDo = None
 
-        self.konfig = konfig_objekt.MainKonfig('konfig_params.cfg')
-        self.grafKonfig = konfig_objekt.GrafKonfig('graf_params.cfg')
-        self.setup_logging()
-        self.restRequest = RESTZahtjev(self.konfig)
+
+        self.restRequest = RESTZahtjev(konfig)
         self.dokument = dokument.Dokument()
 
         self._statusMap = {} # bit status objasnjenje {broj bita [int] : opisni string [str]}
         self._statusLookup = {} # lookup tablica za opis statusa {broj statusa[int] : string asociranih flagova [str]}
 
-        self.gui = mainwindow.MainWindow(self.konfig, self.grafKonfig)
+        self.gui = mainwindow.MainWindow(konfig, grafKonfig)
         self.gui.show()
         self.setup_connections()
         QtCore.QTimer.singleShot(0, self.kickstart_gui)
 
-    def setup_logging(self):
-        """Inicijalizacija loggera"""
-        try:
-            logging.basicConfig(level=self.konfig.logLvl,
-                                filename=self.konfig.logFile,
-                                filemode=self.konfig.logMode,
-                                format='{levelname}:::{asctime}:::{module}:::{funcName}:::LOC:{lineno}:::{message}',
-                                style='{')
-        except Exception as err:
-            print('Pogreska prilikom konfiguracije loggera.')
-            print(str(err))
-            raise SystemExit('Kriticna greska, izlaz iz aplikacije.')
+
 
     def setup_connections(self):
         # quit
@@ -221,8 +207,7 @@ class Kontroler(QtGui.QWidget):
     def init_mjerenja_from_rest(self):
         try:
             QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
-            mjerenjaXML = self.restRequest.get_programe_mjerenja()
-            self.dokument.mjerenja = self._parse_mjerenjaXML(mjerenjaXML)
+            self.dokument.mjerenja = self.restRequest.get_programe_mjerenja()
             self._statusMap = self.restRequest.get_statusMap()
         except (AssertionError, RequestException) as e1:
             msg = "Problem kod dohvaćanja podataka o mjerenjima.\n\n{0}".format(str(e1))
@@ -405,36 +390,6 @@ class Kontroler(QtGui.QWidget):
         return rez
 
 # REVIEW parsiranju nije mjesto u GUI kontroleru!!!
-    def _parse_mjerenjaXML(self, x):
-        """
-        Parsira xml sa programima mjerenja preuzetih sa rest servisa,
 
-        output: (nested) dictionary sa bitnim podacima. Primarni kljuc je program
-        mjerenja id, sekundarni kljucevi su opisni (npr. 'komponentaNaziv')
-        """
-        rezultat = {}
-        root = ET.fromstring(x)
-        for programMjerenja in root:
-            i = int(programMjerenja.find('id').text)
-            postajaId = int(programMjerenja.find('.postajaId/id').text)
-            postajaNaziv = programMjerenja.find('.postajaId/nazivPostaje').text
-            komponentaId = programMjerenja.find('.komponentaId/id').text
-            komponentaNaziv = programMjerenja.find('.komponentaId/naziv').text
-            komponentaMjernaJedinica = programMjerenja.find('.komponentaId/mjerneJediniceId/oznaka').text
-            komponentaFormula = programMjerenja.find('.komponentaId/formula').text
-            usporednoMjerenje = programMjerenja.find('usporednoMjerenje').text
-            konvVUM = float(programMjerenja.find('.komponentaId/konvVUM').text) #konverizijski volumen
-            #dodavanje mjerenja u dictionary
-            rezultat[i] = {
-                'postajaId':postajaId,
-                'postajaNaziv':postajaNaziv,
-                'komponentaId':komponentaId,
-                'komponentaNaziv':komponentaNaziv,
-                'komponentaMjernaJedinica':komponentaMjernaJedinica,
-                'komponentaFormula':komponentaFormula,
-                'usporednoMjerenje':usporednoMjerenje,
-                'konvVUM':konvVUM,
-                'povezaniKanali':[i]}
-        return rezultat
 
 

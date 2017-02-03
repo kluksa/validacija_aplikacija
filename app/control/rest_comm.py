@@ -6,6 +6,40 @@ import numpy as np
 import pandas as pd
 from requests.auth import HTTPBasicAuth
 
+class MjerenjaXMLParser:
+
+    def parse(self, xml):
+        """
+        Parsira xml sa programima mjerenja preuzetih sa rest servisa,
+
+        output: (nested) dictionary sa bitnim podacima. Primarni kljuc je program
+        mjerenja id, sekundarni kljucevi su opisni (npr. 'komponentaNaziv')
+        """
+        rezultat = {}
+        root = ET.fromstring(xml)
+        for programMjerenja in root:
+            i = int(programMjerenja.find('id').text)
+            postajaId = int(programMjerenja.find('.postajaId/id').text)
+            postajaNaziv = programMjerenja.find('.postajaId/nazivPostaje').text
+            komponentaId = programMjerenja.find('.komponentaId/id').text
+            komponentaNaziv = programMjerenja.find('.komponentaId/naziv').text
+            komponentaMjernaJedinica = programMjerenja.find('.komponentaId/mjerneJediniceId/oznaka').text
+            komponentaFormula = programMjerenja.find('.komponentaId/formula').text
+            usporednoMjerenje = programMjerenja.find('usporednoMjerenje').text
+            konvVUM = float(programMjerenja.find('.komponentaId/konvVUM').text) #konverizijski volumen
+            #dodavanje mjerenja u dictionary
+            rezultat[i] = {
+                'postajaId':postajaId,
+                'postajaNaziv':postajaNaziv,
+                'komponentaId':komponentaId,
+                'komponentaNaziv':komponentaNaziv,
+                'komponentaMjernaJedinica':komponentaMjernaJedinica,
+                'komponentaFormula':komponentaFormula,
+                'usporednoMjerenje':usporednoMjerenje,
+                'konvVUM':konvVUM,
+                'povezaniKanali':[i]}
+        return rezultat
+
 
 class RESTZahtjev(object):
     """
@@ -124,7 +158,7 @@ class RESTZahtjev(object):
                          auth=HTTPBasicAuth(self.user, self.pswd))
         msg = 'status={0} , reason={1}, url={2}'.format(str(r.status_code), str(r.reason), url)
         assert r.ok == True, msg
-        return r.text
+        return MjerenjaXMLParser().parse(r.text)
 
     def _valjan_conversion(self, x):
         if x:
