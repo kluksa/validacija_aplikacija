@@ -33,6 +33,8 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
     def setup_connections(self):
         self.action_quit.triggered.connect(self.close)
         #gumbi za add/remove/edit parametre korekcije i primjenu korekcije
+
+        # REVIEW WTF zasto emitiras signal kad ga mozes odmah obraditi????
         self.buttonUcitaj.clicked.connect(self.handle_ucitaj)
         self.buttonExport.clicked.connect(self.handle_export)
         self.buttonPrimjeniKorekciju.clicked.connect(self.handle_primjeni_korekciju)

@@ -1,51 +1,36 @@
 # -*- coding: utf-8 -*-
 import os
-import logging
-import datetime
-import numpy as np
 import pandas as pd
+import logging
 from requests.exceptions import RequestException
 from PyQt4 import QtGui, QtCore
 from app.model import dokument
-from app.model import konfig_objekt
 from app.control.rest_comm import RESTZahtjev, DataReaderAndCombiner
 from app.view import mainwindow
 from app.view import kanal_dijalog
 
 
+# REVIEW ova klasa je sustinski suvisna. Stvari koje nisu vezane uz GUI trebaju se odraditi van GUI-ja
+# REVIEW stvari vezane uz glavni prozor trebaju se riješiti u glavnom prozoru
 class Kontroler(QtGui.QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, konfig, graf_konfig, parent=None):
         QtGui.QWidget.__init__(self, parent=None)
 
         self.kanal = None
         self.vrijemeOd = None
         self.vrijemeDo = None
 
-        self.konfig = konfig_objekt.MainKonfig('konfig_params.cfg')
-        self.grafKonfig = konfig_objekt.GrafKonfig('graf_params.cfg')
-        self.setup_logging()
-        self.restRequest = RESTZahtjev(self.konfig)
-        self.restReader = DataReaderAndCombiner(self.restRequest)
+        self.restRequest = RESTZahtjev(konfig.restProgramMjerenja, konfig.restSiroviPodaci,
+                                       konfig.restStatusMap, konfig.restZeroSpanPodaci)
+        self.data_reader = DataReaderAndCombiner(self.restRequest)
         self.dokument = dokument.Dokument()
 
-        self.gui = mainwindow.MainWindow(self.konfig, self.grafKonfig)
+        self.gui = mainwindow.MainWindow(konfig, graf_konfig)
         self.gui.show()
         self.setup_connections()
         QtCore.QTimer.singleShot(0, self.kickstart_gui)
 
-    def setup_logging(self):
-        """Inicijalizacija loggera"""
-        try:
-            logging.basicConfig(level=self.konfig.logLvl,
-                                filename=self.konfig.logFile,
-                                filemode=self.konfig.logMode,
-                                format='{levelname}:::{asctime}:::{module}:::{funcName}:::LOC:{lineno}:::{message}',
-                                style='{')
-        except Exception as err:
-            print('Pogreska prilikom konfiguracije loggera.')
-            print(str(err))
-            raise SystemExit('Kriticna greska, izlaz iz aplikacije.')
-
+    # REVIEW ovo bi trebalo biti u glavnom prozoru
     def setup_connections(self):
         # quit
         self.connect(self.gui,
@@ -84,14 +69,14 @@ class Kontroler(QtGui.QWidget):
         self.connect(self.dokument.korekcijaModel,
                      QtCore.SIGNAL('update_persistent_delegate'),
                      self.gui.sredi_delegate_za_tablicu)
-        #login
+        # login
         self.gui.handle_login()
 
     def primjeni_korekciju(self):
         try:
             QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
             self.dokument.primjeni_korekciju()
-            #naredi ponovno crtanje
+            # naredi ponovno crtanje
             self.gui.draw_graf()
         except Exception as err:
             msg = "General exception. \n\n{0}".format(str(err))
@@ -114,7 +99,7 @@ class Kontroler(QtGui.QWidget):
             fajlNejm = QtGui.QFileDialog.getSaveFileName(self.gui,
                                                          "export korekcije")
 
-            #os... sastavi imena fileova
+            # os... sastavi imena fileova
             folder, name = os.path.split(fajlNejm)
             podName = "podaci_" + name
             zeroName = "zero_" + name
@@ -144,7 +129,7 @@ class Kontroler(QtGui.QWidget):
             logging.error(str(err), exc_info=True)
             logging.error('logging out')
             self.log_out()
-            #try again loop
+            # try again loop
             odgovor = QtGui.QMessageBox.question(self.gui,
                                                  'Ponovi login',
                                                  'Neuspješan login, želite li probati ponovo?',
@@ -154,7 +139,6 @@ class Kontroler(QtGui.QWidget):
             else:
                 print('Gasim app')
                 QtGui.QApplication.quit()
-
 
     def log_out(self):
         self.restRequest.logmeout()
@@ -191,30 +175,30 @@ class Kontroler(QtGui.QWidget):
         try:
             out = self.show_dijalog_za_izbor_kanala_i_datuma(self.vrijemeOd, self.vrijemeDo)
             if out:
-                #nije cancel exit
+                # nije cancel exit
                 self.kanal, self.vrijemeOd, self.vrijemeDo = out
             else:
                 return
-            #spinning cursor...
+            # spinning cursor...
             QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
-            #dohvati frejmove
-            tpl = self.restReader.get_data(self.kanal, self.vrijemeOd, self.vrijemeDo)
+            # dohvati frejmove
+            tpl = self.data_reader.get_data(self.kanal, self.vrijemeOd, self.vrijemeDo)
             masterKoncFrejm, masterZeroFrejm, masterSpanFrejm = tpl
-            #spremi frejmove u dokument #TODO! samo 1 level...
+            # spremi frejmove u dokument #TODO! samo 1 level...
             self.dokument.koncModel.datafrejm = masterKoncFrejm
             self.dokument.zeroModel.datafrejm = masterZeroFrejm
             self.dokument.spanModel.datafrejm = masterSpanFrejm
-            #set clean modela za korekcije u dokument
+            # set clean modela za korekcije u dokument
             self.dokument.korekcijaModel.datafrejm = pd.DataFrame(columns=['vrijeme', 'A', 'B', 'Sr', 'remove'])
-            #TODO! sredi opis i drugi update gui labela
+            # TODO! sredi opis i drugi update gui labela
             od = str(masterKoncFrejm.index[0])
             do = str(masterKoncFrejm.index[-1])
             self.dokument.set_kanal_info_string(self.kanal, od, do)
             self.gui.update_opis_grafa(self.dokument.koncModel.opis)
-            self.gui.update_konc_labels(('n/a','n/a','n/a'))
-            self.gui.update_zero_labels(('n/a','n/a','n/a'))
-            self.gui.update_span_labels(('n/a','n/a','n/a'))
-            #predavanje (konc, zero, span) modela kanvasu za crtanje (primarni trigger za clear & redraw)
+            self.gui.update_konc_labels(('n/a', 'n/a', 'n/a'))
+            self.gui.update_zero_labels(('n/a', 'n/a', 'n/a'))
+            self.gui.update_span_labels(('n/a', 'n/a', 'n/a'))
+            # predavanje (konc, zero, span) modela kanvasu za crtanje (primarni trigger za clear & redraw)
             self.gui.set_data_models_to_canvas(self.dokument.koncModel,
                                                self.dokument.zeroModel,
                                                self.dokument.spanModel)
