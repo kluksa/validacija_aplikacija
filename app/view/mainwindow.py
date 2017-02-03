@@ -58,19 +58,22 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.labelOpisGrafa.setText(opis)
 
     def update_konc_labels(self, tpl):
-        vrijeme, val = tpl
-        self.koncValLabel.setText(str(vrijeme))
-        self.koncTimeLabel.setText(str(val))
+        vrijeme, val, kor = tpl
+        self.koncValLabel.setText(str(val))
+        self.koncTimeLabel.setText(str(vrijeme))
+        self.koncKorLabel.setText(str(kor))
 
     def update_zero_labels(self, tpl):
-        vrijeme, val = tpl
-        self.zeroValLabel.setText(str(vrijeme))
-        self.zeroTimeLabel.setText(str(val))
+        vrijeme, val, kor = tpl
+        self.zeroValLabel.setText(str(val))
+        self.zeroTimeLabel.setText(str(vrijeme))
+        self.zeroKorLabel.setText(str(kor))
 
     def update_span_labels(self, tpl):
-        vrijeme, val = tpl
-        self.spanValLabel.setText(str(vrijeme))
-        self.spanTimeLabel.setText(str(val))
+        vrijeme, val, kor = tpl
+        self.spanValLabel.setText(str(val))
+        self.spanTimeLabel.setText(str(vrijeme))
+        self.spanKorLabel.setText(str(kor))
 
     def update_labele_obuhvata(self, mapa):
         ocekivano = mapa['ocekivano']

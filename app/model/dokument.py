@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import copy
 from app.model import qtmodels
+import pickle
 
 class Dokument(object):
     def __init__(self):
@@ -53,6 +54,54 @@ class Dokument(object):
     def korekcijaModel(self):
         """Qt table model sa tockama za korekciju"""
         return self._korekcijaModel
+
+    def get_pickleBinary(self, fname, kanal, od, do):
+        mapa = {'kanal':kanal,
+                'od':od,
+                'do':do,
+                'koncFrejm':self.koncModel.datafrejm,
+                'zeroFrejm':self.zeroModel.datafrejm,
+                'spanFrejm':self.spanModel.datafrejm,
+                'korekcijaFrejm':self.korekcijaModel.datafrejm}
+        return pickle.dumps(mapa)
+
+    def set_pickleBinary(self, binstr):
+        mapa = pickle.loads(binstr)
+        self.koncModel.datafrejm = mapa['koncFrejm']
+        self.zeroModel.datafrejm = mapa['zeroFrejm']
+        self.spanModel.datafrejm = mapa['spanFrejm']
+        self.korekcijaModel.datafrejm = mapa['korekcijaFrejm']
+        od = mapa['od']
+        do = mapa['do']
+        kanal = mapa['kanal']
+        #TODO! emit request za redraw
+
+
+
+    def primjeni_korekciju(self):
+        """pokupi frejmove, primjeni korekciju i spremi promjenu"""
+        self.koncModel.datafrejm = self.korekcijaModel.primjeni_korekciju_na_frejm(self.koncModel.datafrejm)
+        self.zeroModel.datafrejm = self.korekcijaModel.primjeni_korekciju_na_frejm(self.zeroModel.datafrejm)
+        self.spanModel.datafrejm = self.korekcijaModel.primjeni_korekciju_na_frejm(self.spanModel.datafrejm)
+
+    def set_kanal_info_string(self, kanal, od, do):
+        """setter metapodataka o kanalu u model koncentracije"""
+        kid = str(kanal)
+        postaja = self._mjerenja[kanal]['postajaNaziv']
+        #naziv = mapa[kanal]['komponentaNaziv']
+        formula = self._mjerenja[kanal]['komponentaFormula']
+        mjernaJedinica = self._mjerenja[kanal]['komponentaMjernaJedinica']
+        out = "{0}: {1} | {2} ({3}) | OD: {4} | DO: {5}".format(
+            kid,
+            postaja,
+            formula,
+            mjernaJedinica,
+            od,
+            do)
+        #set podatke u konc model
+        self.koncModel.opis = out
+        self.koncModel.kanalMeta = self.mjerenja[kanal]
+
 
     def _konstruiraj_tree_model(self):
         #sredjivanje povezanih kanala (NOx grupa i PM grupa)

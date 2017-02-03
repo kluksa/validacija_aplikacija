@@ -2,9 +2,136 @@
 import json
 import logging
 import requests
+import datetime
 import numpy as np
 import pandas as pd
 from requests.auth import HTTPBasicAuth
+import xml.etree.ElementTree as ET
+from PyQt4 import QtGui
+
+class DataReaderAndCombiner(object):
+    """
+    klasa za read podataka sa resta. Cita dan po dan, updatea progress bar i spaja dnevne
+    frejmove u jedan izlazni.
+
+    reader : RestZahtjev objekt
+    statusi : mapa {statusBit : status}
+    """
+    def __init__(self, reader):
+        self.citac = reader
+        # lookup tablica za opis statusa {broj statusa[int] : string asociranih flagova [str]}
+        self._statusLookup = {}
+        self._status_bits = {}
+
+    def get_data(self, kanal, od, do):
+        """
+        in:
+        -kanal: id kanala mjerenja
+        -od: datetime.datetime (pocetak)
+        -do: datetime.datetime (kraj)
+        """
+        try:
+            #dohvati status bit info
+            self._status_bits = self.citac.get_statusMap()
+            #prazni frejmovi u koje ce se spremati podaci
+            masterKoncFrejm = pd.DataFrame(columns=self.citac.expectedColsKonc)
+            masterZeroFrejm = pd.DataFrame(columns=self.citac.expectedColsZero)
+            masterSpanFrejm = pd.DataFrame(columns=self.citac.expectedColsSpan)
+            #definiraj raspon podataka
+            timeRaspon = (do - od).days
+            if timeRaspon < 1:
+                raise ValueError('Vremenski raspon manji od dana nije dozvoljen')
+            #napravi progress bar i postavi ga...
+            self.progress = QtGui.QProgressBar()
+            self.progress.setWindowTitle('Load status:')
+            self.progress.setRange(0, timeRaspon+1)
+            self.progress.setGeometry(300, 300, 200, 40)
+            self.progress.show()
+            #ucitavanje frejmova koncentracija, zero, span
+            for d in range(timeRaspon+1):
+                dan = (od + datetime.timedelta(d)).strftime('%Y-%m-%d')
+                koncFrejm = self.citac.get_sirovi(kanal, dan)
+                zeroFrejm, spanFrejm = self.citac.get_zero_span(kanal, dan, 1)
+                #append dnevne frejmove na glavni ako imaju podatke
+                if len(koncFrejm):
+                    masterKoncFrejm = masterKoncFrejm.append(koncFrejm)
+                if len(zeroFrejm):
+                    masterZeroFrejm = masterZeroFrejm.append(zeroFrejm)
+                if len(spanFrejm):
+                    masterSpanFrejm = masterSpanFrejm.append(spanFrejm)
+                #advance progress bar
+                self.progress.setValue(d)
+            self.progress.close()
+            #broj podataka u satu...
+            try:
+                frek = int(np.floor(60/self.citac.get_broj_u_satu(kanal)))
+            except Exception as err:
+                logging.error(str(err), exc_info=True)
+                #default na minutni period
+                frek = -1
+
+            if frek <= 1:
+                frek = 'Min'
+                start = datetime.datetime.combine(od, datetime.time(0, 1, 0))
+                kraj = do + datetime.timedelta(1)
+            else:
+                frek = str(frek) + 'Min'
+                start = datetime.datetime.combine(od, datetime.time(0, 0, 0))
+                kraj = do + datetime.timedelta(1)
+
+
+            fullraspon = pd.date_range(start=start, end=kraj, freq=frek)
+            #konverzija status int to string za koncentracijski frejm
+            statstr = [self._statusInt_to_statusString(i) for i in masterKoncFrejm.loc[:,'status']]
+            masterKoncFrejm.loc[:,'statusString'] = statstr
+            #reindex koncentracijski data zbog rupa u podacima (ako nedostaju rubni podaci)
+            masterKoncFrejm = masterKoncFrejm.reindex(fullraspon)
+            #output frejmove
+            return masterKoncFrejm, masterZeroFrejm, masterSpanFrejm
+        except Exception as err:
+            logging.error(str(err), exc_info=True)
+            if hasattr(self, 'progress'):
+                self.progress.close()
+            raise Exception('Problem kod ucitavanja podataka') from err
+
+    def _check_bit(self, broj, bit_position):
+        """
+        Pomocna funkcija za testiranje statusa
+        Napravi temporary integer koji ima samo jedan bit vrijednosti 1 na poziciji
+        bit_position. Napravi binary and takvog broja i ulaznog broja.
+        Ako oba broja imaju bit 1 na istoj poziciji vrati True, inace vrati False.
+        """
+        if bit_position != None:
+            temp = 1 << int(bit_position) #left shift bit za neki broj pozicija
+            if int(broj) & temp > 0: # binary and izmjedju ulaznog broja i testnog broja
+                return True
+            else:
+                return False
+
+    def _check_status_flags(self, broj):
+        """
+        provjeri stauts integera broj dekodirajuci ga sa hash tablicom
+        {bit_pozicija:opisni string}. Vrati string opisa.
+        """
+        flaglist = []
+        for key, value in self._status_bits.items():
+            if self._check_bit(broj, key):
+                flaglist.append(value)
+        opis = ",".join(flaglist)
+        return opis
+
+    def _statusInt_to_statusString(self, sint):
+        if np.isnan(sint):
+            return 'Status nije definiran'
+        sint = int(sint)
+        rez = self._statusLookup.get(sint, None) #see if value exists
+        if rez == None:
+            rez = self._check_status_flags(sint) #calculate
+            self._statusLookup[sint] = rez #store value for future lookup
+        return rez
+
+
+
 
 
 class RESTZahtjev(object):
@@ -14,6 +141,13 @@ class RESTZahtjev(object):
     def __init__(self, konfig, auth=('','')):
         self.konfig = konfig
         self.logmein(auth)
+        #ocekivani stupci u ooutputu
+        self.expectedColsKonc = ['koncentracija', 'korekcija', 'flag', 'statusString',
+                                 'status', 'id', 'A', 'B', 'Sr', 'LDL']
+        self.expectedColsZero = ['zero', 'korekcija', 'minDozvoljeno',
+                                 'maxDozvoljeno', 'A', 'B', 'Sr', 'LDL']
+        self.expectedColsSpan = ['span', 'korekcija', 'minDozvoljeno',
+                                 'maxDozvoljeno', 'A', 'B', 'Sr', 'LDL']
 
     def logmein(self, auth):
         self.user, self.pswd = auth
@@ -124,7 +258,8 @@ class RESTZahtjev(object):
                          auth=HTTPBasicAuth(self.user, self.pswd))
         msg = 'status={0} , reason={1}, url={2}'.format(str(r.status_code), str(r.reason), url)
         assert r.ok == True, msg
-        return r.text
+        out = self.parse_mjerenjaXML(r.text)
+        return out
 
     def _valjan_conversion(self, x):
         if x:
@@ -139,10 +274,6 @@ class RESTZahtjev(object):
             return np.NaN
 
     def adaptiraj_zero_span_json(self, x):
-        expectedColumns = ['vrijednost',
-                           'korekcija',
-                           'minDozvoljeno',
-                           'maxDozvoljeno']
         try:
             frejm = pd.read_json(x, orient='records', convert_dates=['vrijeme'])
             assert 'vrsta' in frejm.columns, 'Nedostaje stupac vrsta'
@@ -154,37 +285,45 @@ class RESTZahtjev(object):
             spanFrejm = frejm[frejm['vrsta'] == "S"]
             zeroFrejm = zeroFrejm.set_index(zeroFrejm['vrijeme'])
             spanFrejm = spanFrejm.set_index(spanFrejm['vrijeme'])
+            #round off zero i spana na minutu
+            zeroIndeksRounded = [i.round('Min') for i in zeroFrejm.index]
+            spanIndeksRounded = [i.round('Min') for i in spanFrejm.index]
+            zeroFrejm.index = zeroIndeksRounded
+            spanFrejm.index = spanIndeksRounded
             # kontrola za besmislene vrijednosti (tipa -999)
             zeroFrejm = zeroFrejm[zeroFrejm['vrijednost'] > -998.0]
             spanFrejm = spanFrejm[spanFrejm['vrijednost'] > -998.0]
             #drop unused
             spanFrejm.drop(['vrijeme', 'vrsta'], inplace=True, axis=1)
             zeroFrejm.drop(['vrijeme', 'vrsta'], inplace=True, axis=1)
-            #dodaj korekciju
+            #dodaj nan stupce
             spanFrejm['korekcija'] = np.NaN
+            spanFrejm['A'] = np.NaN
+            spanFrejm['B'] = np.NaN
+            spanFrejm['Sr'] = np.NaN
+            spanFrejm['LDL'] = np.NaN
             zeroFrejm['korekcija'] = np.NaN
+            zeroFrejm['A'] = np.NaN
+            zeroFrejm['B'] = np.NaN
+            zeroFrejm['Sr'] = np.NaN
+            zeroFrejm['LDL'] = np.NaN
             #rename zero i span
             spanFrejm.rename(columns={'vrijednost':'span'}, inplace=True)
             zeroFrejm.rename(columns={'vrijednost':'zero'}, inplace=True)
+            #reorder columns
+            spanFrejm = spanFrejm[self.expectedColsSpan]
+            zeroFrejm = zeroFrejm[self.expectedColsZero]
             return zeroFrejm, spanFrejm
         except Exception:
             logging.error('Fail kod parsanja json stringa:\n'+str(x), exc_info=True)
-            spanFrejm = pd.DataFrame(columns=expectedColumns)
-            zeroFrejm = pd.DataFrame(columns=expectedColumns)
-            spanFrejm.rename(columns={'vrijednost':'span'}, inplace=True)
-            zeroFrejm.rename(columns={'vrijednost':'zero'}, inplace=True)
+            spanFrejm = pd.DataFrame(columns=self.expectedColsSpan)
+            zeroFrejm = pd.DataFrame(columns=self.expectedColsZero)
             return zeroFrejm, spanFrejm
 
     def adaptiraj_ulazni_json(self, x):
         """
         Funkcija je zaduzena da konvertira ulazni json string (x) u pandas frejm
         """
-        expectedColumns = ['koncentracija',
-                           'korekcija',
-                           'flag',
-                           'statusString',
-                           'status',
-                           'id']
         try:
             df = pd.read_json(x, orient='records', convert_dates=['vrijeme'])
             assert 'vrijeme' in df.columns, 'ERROR - Nedostaje stupac: "vrijeme"'
@@ -202,14 +341,53 @@ class RESTZahtjev(object):
             df['koncentracija'] = df['koncentracija'].map(self._nan_conversion)
             df['flag'] = df['flag'].map(self._valjan_conversion)
             df['korekcija'] = np.NaN #placeholder
+            df['A'] = np.NaN #placeholder
+            df['B'] = np.NaN #placeholder
+            df['Sr'] = np.NaN #placeholder
+            df['LDL'] = np.NaN #placeholder
             df['statusString'] = df['statusString']
             #drop unused columns
             df.drop(['vrijeme', 'nivoValidacije'], inplace=True, axis=1)
+            #reorder
+            df = df[self.expectedColsKonc]
             return df
         except (ValueError, TypeError, AssertionError):
             logging.error('Fail kod parsanja json stringa:\n'+str(x), exc_info=True)
-            df = pd.DataFrame(columns=expectedColumns)
+            df = pd.DataFrame(columns=self.expectedColsKonc)
             return df
+
+    def parse_mjerenjaXML(self, x):
+        """
+        Parsira xml sa programima mjerenja preuzetih sa rest servisa,
+
+        output: (nested) dictionary sa bitnim podacima. Primarni kljuc je program
+        mjerenja id, sekundarni kljucevi su opisni (npr. 'komponentaNaziv')
+        """
+        rezultat = {}
+        root = ET.fromstring(x)
+        for programMjerenja in root:
+            i = int(programMjerenja.find('id').text)
+            postajaId = int(programMjerenja.find('.postajaId/id').text)
+            postajaNaziv = programMjerenja.find('.postajaId/nazivPostaje').text
+            komponentaId = programMjerenja.find('.komponentaId/id').text
+            komponentaNaziv = programMjerenja.find('.komponentaId/naziv').text
+            komponentaMjernaJedinica = programMjerenja.find('.komponentaId/mjerneJediniceId/oznaka').text
+            komponentaFormula = programMjerenja.find('.komponentaId/formula').text
+            usporednoMjerenje = programMjerenja.find('usporednoMjerenje').text
+            konvVUM = float(programMjerenja.find('.komponentaId/konvVUM').text) #konverizijski volumen
+            #dodavanje mjerenja u dictionary
+            rezultat[i] = {
+                'postajaId':postajaId,
+                'postajaNaziv':postajaNaziv,
+                'komponentaId':komponentaId,
+                'komponentaNaziv':komponentaNaziv,
+                'komponentaMjernaJedinica':komponentaMjernaJedinica,
+                'komponentaFormula':komponentaFormula,
+                'usporednoMjerenje':usporednoMjerenje,
+                'konvVUM':konvVUM,
+                'povezaniKanali':[i]}
+        return rezultat
+
 
 #    def upload_json_minutnih(self, programMjerenjaId=None, jstring=None, datum=None):
 #        """
