@@ -1,12 +1,15 @@
 # -*- coding: utf-8 -*-
+import datetime
 import json
 import logging
-import requests
-import datetime
+
 import numpy as np
 import pandas as pd
-from requests.auth import HTTPBasicAuth
+import requests
 from PyQt4 import QtGui
+from requests.auth import HTTPBasicAuth
+
+from app.control.adapteri import PodatakAdapter, ProgramMjerenjaAdapter
 
 
 class DataReaderAndCombiner(object):
@@ -143,6 +146,10 @@ class RESTZahtjev(object):
         self.sirovi_podaci_url = sirovi_podaci_url
         self.status_map_url = status_map_url
         self.zero_span_podaci_url = zero_span_podaci_url
+        self.zs_adapter = PodatakAdapter()
+        self.program_adapter = ProgramMjerenjaAdapter()
+        self.podatak_adapter = PodatakAdapter()
+
 
 
     def logmein(self, auth):
@@ -184,7 +191,7 @@ class RESTZahtjev(object):
         url = self.sirovi_podaci_url + '/' + str(programMjerenjaId) + '/' + datum
         payload = {"id": "getPodaci", "name": "GET", "broj_dana": 1}
         head = {"accept": "application/json"}
-        frejm = self.adaptiraj_ulazni_json(self._get_request(url, payload, head))
+        frejm = self.podatak_adapter.adaptiraj(self._get_request(url, payload, head))
         return frejm
 
     def get_zero_span(self, programMjerenja, datum, kolicina):
@@ -202,7 +209,7 @@ class RESTZahtjev(object):
         url = self.zero_span_podaci_url + '/' + str(programMjerenja) + '/' + datum
         payload = {"id": "getZeroSpanLista", "name": "GET", "broj_dana": int(kolicina)}
         head = {"accept": "application/json"}
-        zero, span = self.adaptiraj_zero_span_json(self._get_request(url, payload, head))
+        zero, span = self.zero_span_adapter.adaptiraj(self._get_request(url, payload, head))
         return zero, span
 
     def get_programe_mjerenja(self):
@@ -216,7 +223,7 @@ class RESTZahtjev(object):
         """
         head = {"accept": "application/xml"}
         payload = {"id": "findAll", "name": "GET"}
-        out = self.parse_mjerenjaXML(self._get_request(self.program_url, payload, head))
+        out = self.program_adapter.adaptiraj(self._get_request(self.program_url, payload, head))
         return out
 
     def _get_request(self, url, params, headers):

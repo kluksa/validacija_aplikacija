@@ -31,7 +31,7 @@ class KanalDijalog(BASE_KANAL_DIJALOG, FORM_KANAL_DIJALOG):
         if timeRaspon < 1:
             QtGui.QMessageBox.warning(self, 'Problem', 'Vremenski raspon nije dobro zadan')
             return
-        elif self.izabraniKanal == None:
+        elif self.izabraniKanal is None:
             QtGui.QMessageBox.warning(self, 'Problem', 'Program mjerenja nije zadan')
             return
         else:

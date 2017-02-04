@@ -1,17 +1,20 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-import sys
-from PyQt4 import QtGui
-from app.control import controler
 import logging
+import sys
+
+from PyQt4 import QtGui
+
+from app.model import dokument
 from app.model import konfig_objekt
+from app.view import mainwindow
 
 
 class Validacija():
     def __init__(self):
         self.konfig = konfig_objekt.MainKonfig('konfig_params.cfg')
-        self.grafKonfig = konfig_objekt.GrafKonfig('graf_params.cfg')
+        self.graf_konfig = konfig_objekt.GrafKonfig('graf_params.cfg')
         self.setup_logging()
 
     def setup_logging(self):
@@ -31,7 +34,9 @@ class Validacija():
     def run(self, argv):
 
         app = QtGui.QApplication(argv)
-        runner = controler.Kontroler(self.konfig, self.grafKonfig)
+        gui = mainwindow.MainWindow(self.konfig, self.graf_konfig, dokument.Dokument())
+        gui.show()
+        gui.handle_login()
         sys.exit(app.exec_())
 
 

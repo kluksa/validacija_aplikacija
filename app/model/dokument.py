@@ -1,21 +1,42 @@
 # -*- coding: utf-8 -*-
 import copy
-from app.model import qtmodels
+import os
 import pickle
+
+from app.model import qtmodels
+
 
 class Dokument(object):
     def __init__(self):
-        #nested dict mjerenja
+        # nested dict mjerenja
         self._mjerenja = {}
-        #empty tree model programa mjerenja
+        # empty tree model programa mjerenja
         drvo = qtmodels.TreeItem(['stanice', None, None, None], parent=None)
         self._treeModelProgramaMjerenja = qtmodels.ModelDrva(drvo)
 
-        #modeli za prikaz podataka
+        # modeli za prikaz podataka
         self._koncModel = qtmodels.KoncFrameModel()
         self._zeroModel = qtmodels.ZeroSpanFrameModel('zero')
         self._spanModel = qtmodels.ZeroSpanFrameModel('span')
         self._korekcijaModel = qtmodels.KorekcijaFrameModel()
+
+    def spremi_se(self, fajlNejm):
+        frejmPodaci = self.dokument.koncModel.datafrejm
+        frejmZero = self.dokument.zeroModel.datafrejm
+        frejmSpan = self.dokument.spanModel.datafrejm
+
+        # os... sastavi imena fileova
+        folder, name = os.path.split(fajlNejm)
+        podName = "podaci_" + name
+        zeroName = "zero_" + name
+        spanName = "span_" + name
+        podName = os.path.normpath(os.path.join(folder, podName))
+        zeroName = os.path.normpath(os.path.join(folder, zeroName))
+        spanName = os.path.normpath(os.path.join(folder, spanName))
+
+        frejmPodaci.to_csv(podName, sep=';')
+        frejmZero.to_csv(zeroName, sep=';')
+        frejmSpan.to_csv(spanName, sep=';')
 
     @property
     def mjerenja(self):
@@ -56,13 +77,13 @@ class Dokument(object):
         return self._korekcijaModel
 
     def get_pickleBinary(self, fname, kanal, od, do):
-        mapa = {'kanal':kanal,
-                'od':od,
-                'do':do,
-                'koncFrejm':self.koncModel.datafrejm,
-                'zeroFrejm':self.zeroModel.datafrejm,
-                'spanFrejm':self.spanModel.datafrejm,
-                'korekcijaFrejm':self.korekcijaModel.datafrejm}
+        mapa = {'kanal': kanal,
+                'od': od,
+                'do': do,
+                'koncFrejm': self.koncModel.datafrejm,
+                'zeroFrejm': self.zeroModel.datafrejm,
+                'spanFrejm': self.spanModel.datafrejm,
+                'korekcijaFrejm': self.korekcijaModel.datafrejm}
         return pickle.dumps(mapa)
 
     def set_pickleBinary(self, binstr):
@@ -74,9 +95,7 @@ class Dokument(object):
         od = mapa['od']
         do = mapa['do']
         kanal = mapa['kanal']
-        #TODO! emit request za redraw
-
-
+        # TODO! emit request za redraw
 
     def primjeni_korekciju(self):
         """pokupi frejmove, primjeni korekciju i spremi promjenu"""
@@ -88,7 +107,7 @@ class Dokument(object):
         """setter metapodataka o kanalu u model koncentracije"""
         kid = str(kanal)
         postaja = self._mjerenja[kanal]['postajaNaziv']
-        #naziv = mapa[kanal]['komponentaNaziv']
+        # naziv = mapa[kanal]['komponentaNaziv']
         formula = self._mjerenja[kanal]['komponentaFormula']
         mjernaJedinica = self._mjerenja[kanal]['komponentaMjernaJedinica']
         out = "{0}: {1} | {2} ({3}) | OD: {4} | DO: {5}".format(
@@ -98,23 +117,22 @@ class Dokument(object):
             mjernaJedinica,
             od,
             do)
-        #set podatke u konc model
+        # set podatke u konc model
         self.koncModel.opis = out
         self.koncModel.kanalMeta = self.mjerenja[kanal]
 
-
     def _konstruiraj_tree_model(self):
-        #sredjivanje povezanih kanala (NOx grupa i PM grupa)
+        # sredjivanje povezanih kanala (NOx grupa i PM grupa)
         for kanal in self._mjerenja:
             pomocni = self._get_povezane_kanale(kanal)
             for i in pomocni:
                 self._mjerenja[kanal]['povezaniKanali'].append(i)
-            #sortiraj povezane kanale, predak je bitan zbog radio buttona
+            # sortiraj povezane kanale, predak je bitan zbog radio buttona
             lista = sorted(self._mjerenja[kanal]['povezaniKanali'])
             self._mjerenja[kanal]['povezaniKanali'] = lista
 
         drvo = qtmodels.TreeItem(['stanice', None, None, None], parent=None)
-        #za svaku individualnu stanicu napravi TreeItem objekt, reference objekta spremi u dict
+        # za svaku individualnu stanicu napravi TreeItem objekt, reference objekta spremi u dict
         stanice = []
         for pmid in sorted(list(self._mjerenja.keys())):
             stanica = self._mjerenja[pmid]['postajaNaziv']
@@ -124,7 +142,7 @@ class Dokument(object):
         postaje = [qtmodels.TreeItem([name, None, None, None], parent=drvo) for name in stanice]
         strPostaje = [str(i) for i in postaje]
         for pmid in self._mjerenja:
-            stanica = self._mjerenja[pmid]['postajaNaziv']  #parent = stanice[stanica]
+            stanica = self._mjerenja[pmid]['postajaNaziv']  # parent = stanice[stanica]
             komponenta = self._mjerenja[pmid]['komponentaNaziv']
             formula = self._mjerenja[pmid]['komponentaFormula']
             mjernaJedinica = self._mjerenja[pmid]['komponentaMjernaJedinica']
@@ -132,7 +150,7 @@ class Dokument(object):
             usporedno = self._mjerenja[pmid]['usporednoMjerenje']
             data = [komponenta, usporedno, pmid, opis]
             redniBrojPostaje = strPostaje.index(stanica)
-            #kreacija TreeItem objekta
+            # kreacija TreeItem objekta
             qtmodels.TreeItem(data, parent=postaje[redniBrojPostaje])
         self._treeModelProgramaMjerenja = qtmodels.ModelDrva(drvo)
 
@@ -155,13 +173,13 @@ class Dokument(object):
             if formula in kombinacija:
                 ciljaniSet = kombinacija
                 break
-        #ako kanal ne pripada setu povezanih...
-        if ciljaniSet == None:
+        # ako kanal ne pripada setu povezanih...
+        if ciljaniSet is None:
             return output
         for pmid in self._mjerenja:
             if self._mjerenja[pmid]['postajaId'] == postaja and pmid != kanal:
                 if self._mjerenja[pmid]['komponentaFormula'] in ciljaniSet:
-                    #usporedno mjerenje se mora poklapati...
+                    # usporedno mjerenje se mora poklapati...
                     if self._mjerenja[pmid]['usporednoMjerenje'] == usporednoMjerenje:
                         output.add(pmid)
         return output

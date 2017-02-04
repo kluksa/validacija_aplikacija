@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
-import os
-import logging
 import datetime
 import functools
+import logging
+import os
+
+import matplotlib
 import numpy as np
 import pandas as pd
 from PyQt4 import QtCore, QtGui
-import matplotlib
 from matplotlib import gridspec
-from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar2
+from matplotlib.figure import Figure
 from matplotlib.widgets import SpanSelector
 
 try:
@@ -441,7 +442,7 @@ class Kanvas(FigureCanvas):
                   'SPAN_LOW_LIMIT':self.spanLowLimit}
 
         for section, lajnObjekt in curves.items():
-            if lajnObjekt != None:
+            if lajnObjekt is not None:
                 for option, geter in func_getters.items():
                     #dohvati odgovarajuci setter
                     tmpfunc = getattr(lajnObjekt, geter)

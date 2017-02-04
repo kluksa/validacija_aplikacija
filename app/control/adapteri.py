@@ -1,6 +1,8 @@
-import pandas as pd
-import numpy as np
 import xml.etree.ElementTree as Et
+
+import numpy as np
+import pandas as pd
+
 
 class MalformedJSONException(Exception):
     '''Iznimka kada ne valja ulazni JSON'''
@@ -12,17 +14,19 @@ class Adapter:
     def __init__(self):
         self.obavezni_json_stupci = []
 
-    def _provjeri(self, json, obavezni_json_stupci):
-        if len(json.columns) < len(obavezni_json_stupci):
+    def adaptiraj(self, ulaz):
+        raise NotImplementedError
+
+    def _provjeri(self, data_frame, obavezni_json_stupci):
+        if len(data_frame.columns) < len(obavezni_json_stupci):
             raise MalformedJSONException('JSON ima manje stupaca od obaveznog broja')
         for stupac in obavezni_json_stupci:
-            if stupac not in json.columns:
+            if stupac not in data_frame.columns:
                 raise MalformedJSONException('Nedostaje stupac ' + stupac)
+        return True
 
 
 class ZeroSpanAdapter(Adapter):
-
-
     def __init__(self):
         super(Adapter,self).__init__()
         self.obavezni_json_stupci = ['vrsta', 'vrijeme', 'vrijednost', 'minDozvoljeno', 'maxDozvoljeno']
@@ -36,9 +40,9 @@ class ZeroSpanAdapter(Adapter):
         frame = pd.concat([frame, pd.DataFrame(columns=['korekcija', 'A', 'B', 'Sr', 'LDL'])])
         return frame[self.frame_stupci]
 
-    def adapt(self, x):
+    def adaptiraj(self, ulaz):
         #       try:
-        frejm = pd.read_json(x, orient='records', convert_dates=['vrijeme'])
+        frejm = pd.read_json(ulaz, orient='records', convert_dates=['vrijeme'])
         self._provjeri(frejm, self.obavezni_json_stupci)
         zero_frejm = self._napravi_frame(frejm[frejm['vrsta'] == 'Z'])
         zero_frejm.rename(columns={'vrijednost': 'zero'}, inplace=True)
@@ -62,12 +66,12 @@ class PodatakAdapter(Adapter):
         self.obavezni_json_stupci = ['vrijeme', 'id', 'vrijednost', 'statusString', 'valjan',
                                      'statusInt', 'nivoValidacije']
 
-    def adaptiraj_ulazni_json(self, json):
+    def adaptiraj(self, ulaz):
         """
         Funkcija je zaduzena da konvertira ulazni json string (x) u pandas frejm
         """
         #        try:
-        df = pd.read_json(json, orient='records', convert_dates=['vrijeme'])
+        df = pd.read_json(ulaz, orient='records', convert_dates=['vrijeme'])
         self._provjeri(df, self.obavezni_json_stupci)
         df = df.set_index(df['vrijeme'])
         df.drop(['vrijeme', 'nivoValidacije'], inplace=True, axis=1)
@@ -92,7 +96,7 @@ class PodatakAdapter(Adapter):
 
 
 class ProgramMjerenjaAdapter:
-    def adapt(self, x):
+    def adaptiraj(self, ulaz):
         """
         Parsira xml sa programima mjerenja preuzetih sa rest servisa,
 
@@ -100,7 +104,7 @@ class ProgramMjerenjaAdapter:
         mjerenja id, sekundarni kljucevi su opisni (npr. 'komponentaNaziv')
         """
         rezultat = {}
-        root = Et.fromstring(x)
+        root = Et.fromstring(ulaz)
         for programMjerenja in root:
             i = int(programMjerenja.find('id').text)
             rezultat[i] = {
