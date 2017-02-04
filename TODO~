@@ -4,7 +4,7 @@
 
 - ucitavanje: ako vremenski interval nije dozvoljen ne zatvarati dijalog nego tražiti ponovni unos vremena : DONE
 
-- rectangle zoom ne radi ako je pocetak prije prvog podatka : DONE
+- rectangle zoom ne radi ako je pocetak prije prvog podatka
 
 - kod primjene korekcije ne mijenjati zoom
 

@@ -1,24 +1,21 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-import sys
 import logging
-from app.model import konfig_objekt
+import sys
 
 from PyQt4 import QtGui
-from app.control import controler
+
+from app.model import dokument
+from app.model import konfig_objekt
+from app.view import mainwindow
+
 
 class Validacija():
     def __init__(self):
-
         self.konfig = konfig_objekt.MainKonfig('konfig_params.cfg')
-        self.grafKonfig = konfig_objekt.GrafKonfig('graf_params.cfg')
+        self.graf_konfig = konfig_objekt.GrafKonfig('graf_params.cfg')
         self.setup_logging()
-
-    def run(self, argv):
-        app = QtGui.QApplication(argv)
-        runner = controler.Kontroler(self.konfig, self.grafKonfig)
-        sys.exit(app.exec_())
 
     def setup_logging(self):
         """Inicijalizacija loggera"""
@@ -33,9 +30,15 @@ class Validacija():
             print(str(err))
             raise SystemExit('Kriticna greska, izlaz iz aplikacije.')
 
-if __name__ == '__main__':
-    v = Validacija()
-    v.run(sys.argv)
 
-    # TODO! ldl ne valja...limiti ovise o dosta toga..LDL limit treba postaviti skupa sa korekcijom
-    # TODO! svaki model mora izvaditi kada korekcija je manja od ldl...vspans...
+    def run(self, argv):
+
+        app = QtGui.QApplication(argv)
+        gui = mainwindow.MainWindow(self.konfig, self.graf_konfig, dokument.Dokument())
+        gui.show()
+        gui.handle_login()
+        sys.exit(app.exec_())
+
+
+if __name__ == '__main__':
+    Validacija().run(sys.argv)

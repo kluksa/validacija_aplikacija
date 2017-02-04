@@ -189,7 +189,9 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
 
     def __init__(self, frejm=None, parent=None):
         QtCore.QAbstractTableModel.__init__(self, parent)
-        self._expectedCols = ['koncentracija', 'korekcija', 'flag', 'statusString', 'status', 'id']
+        #TODO! hardcoding = bad...
+        self._expectedCols = ['koncentracija', 'korekcija', 'flag', 'statusString',
+                                 'status', 'id', 'A', 'B', 'Sr', 'LDL']
         self._dataFrejm = pd.DataFrame(columns=self._expectedCols)
         self._opis = "Postaja , naziv formula ( mjerna jedinica )"
         self._kanalMeta = {}
@@ -202,12 +204,12 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
         return self._dataFrejm.copy()
 
     @datafrejm.setter
-    def datafrejm(self, x):
-        if isinstance(x, pd.core.frame.DataFrame):
-            self._dataFrejm = x[self._expectedCols]  # reodrer / crop columns
+    def datafrejm(self, df):
+        if isinstance(df, pd.core.frame.DataFrame):
+            self._dataFrejm = df[self._expectedCols]  # reodrer / crop columns
             self.layoutChanged.emit()
         else:
-            raise TypeError('Not a pandas DataFrame object'.format(type(x)))
+            raise TypeError('Not a pandas DataFrame object'.format(type(df)))
 
     @property
     def opis(self):
@@ -361,8 +363,10 @@ class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
     """
 
     def __init__(self, tip, frejm=None, parent=None):
+        #TODO! hardcoding = bad...
         QtCore.QAbstractTableModel.__init__(self, parent)
-        self._expectedCols = [str(tip), 'korekcija', 'minDozvoljeno', 'maxDozvoljeno']
+        self._expectedCols = [str(tip), 'korekcija', 'minDozvoljeno',
+                              'maxDozvoljeno', 'A', 'B', 'Sr', 'LDL']
         self._dataFrejm = pd.DataFrame(columns=self._expectedCols)
         if frejm is None:
             frejm = pd.DataFrame(columns=self._expectedCols)
@@ -430,31 +434,35 @@ class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
         if len(manji):
             t1 = manji.index[-1]
             v1 = manji.loc[t1, self._expectedCols[0]]
+            v1k = manji.loc[t1, 'korekcija']
         else:
             t1 = None
             v1 = None
+            v1k = None
         # svi veci od tajm
         veci = self._dataFrejm[self._dataFrejm.index > tajm]
         if len(veci):
             t2 = veci.index[0]
             v2 = veci.loc[t2, self._expectedCols[0]]
+            v2k = manji.loc[t1, 'korekcija']
         else:
             t2 = None
             v2 = None
+            v2k = None
 
         if t1 != None and t2 == None:
-            return t1, v1
+            return t1, v1, v1k
         elif t1 == None and t2 != None:
-            return t2, v2
+            return t2, v2, v2k
         elif t1 == None and t2 == None:
-            return 'n/a', 'n/a'
+            return 'n/a', 'n/a', 'n/a'
         else:
             d1 = (tajm - t1).total_seconds()
             d2 = (t2 - tajm).total_seconds()
             if d1 > d2:
-                return t2, v2
+                return t2, v2, v2k
             else:
-                return t1, v1
+                return t1, v1, v1k
 
     def get_autoscale_y_range(self, t1, t2):
         """getter y raspona podataka izmedju vremena t1 i t2"""
@@ -544,35 +552,55 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         frejm['LDL'] = ldl
         return frejm
 
-    def get_frejm_za_korekciju(self, indeksi):
-        """getter frejma sa interpoliranim vrijednostima korekcije"""
+    def primjeni_korekciju_na_frejm(self, frejm):
+        """primjena korekcije na zadani frejm..."""
+        #pripremi frejm korekcije za rad
         df = self._dataFrejm.copy()
         # izbaci zadnji red (za dodavanje stvari...)
         df = df.iloc[:-1, :]
         # sort
         df.dropna(axis=0, inplace=True)
         df.sort_values(['vrijeme'], inplace=True)
-        df.drop(['remove'], axis=1, inplace=True)
-        if len(df):
-            # set indeks vrijeme & remove stupac 'vrijeme'...
-            df = df.set_index(df['vrijeme'])
-            df.drop(['vrijeme'], inplace=True, axis=1)
-            df['A'] = df['A'].astype(float)
-            df['B'] = df['B'].astype(float)
-            df['Sr'] = df['Sr'].astype(float)
+        df = df.set_index(df['vrijeme'])
+        #drop stupce koji su pomocni
+        df.drop(['remove', 'vrijeme'], axis=1, inplace=True)
+        df['A'] = df['A'].astype(float)
+        df['B'] = df['B'].astype(float)
+        df['Sr'] = df['Sr'].astype(float)
+        if (not len(df)) or (not len(frejm)):
+            #korekcija nije primjenjena jer je frejm sa parametrima prazan ili je sam frejm prazan
+            return frejm
+        try:
             zadnjiIndeks = list(df.index)[-1]
             # sredi interpolaciju dodaj na kraj podatka zadnju vrijednost
-            krajPodataka = indeksi[-1]
+            krajPodataka = frejm.index[-1]
             df.loc[krajPodataka, 'A'] = df.loc[zadnjiIndeks, 'A']
             df.loc[krajPodataka:, 'B'] = df.loc[zadnjiIndeks, 'B']
             df.loc[krajPodataka:, 'Sr'] = df.loc[zadnjiIndeks, 'Sr']
             # interpoliraj na minutnu razinu
+            savedSr = df['Sr']
             df = df.resample('Min').interpolate()
+            #sredi Sr da bude skokovit
+            for i in range(len(savedSr)-1):
+                ind1 = savedSr.index[i]
+                ind2 = savedSr.index[i+1]
+                val = savedSr.iloc[i]
+                df.loc[ind1:ind2, 'Sr'] = val
             df = self.calc_ldl_values(df)
-            df = df.reindex(indeksi)  # samo za definirane indekse...
-            return df
-        else:
-            return []
+            df = df.reindex(frejm.index)  # samo za definirane indekse...
+            #slozi podatke u input frejm
+            frejm['A'] = df['A']
+            frejm['B'] = df['B']
+            frejm['Sr'] = df['Sr']
+            frejm['LDL'] = df['LDL']
+            #izracunaj korekciju i apply
+            korekcija = frejm.iloc[:,0] * frejm.loc[:,'A'] + frejm.loc[:,'B']
+            frejm['korekcija'] = korekcija
+            return frejm
+        except Exception as err:
+            logging.error(str(err), exc_info=True)
+            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', 'Problem kod racunanja korekcije')
+            return frejm
 
     # QT functionality
     def rowCount(self, parent=QtCore.QModelIndex()):
