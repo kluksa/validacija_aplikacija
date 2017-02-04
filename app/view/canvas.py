@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
-import os
-import logging
 import datetime
 import functools
+import logging
+import os
+
+import matplotlib
 import numpy as np
 import pandas as pd
 from PyQt4 import QtCore, QtGui
-import matplotlib
 from matplotlib import gridspec
-from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar2
+from matplotlib.figure import Figure
 from matplotlib.widgets import SpanSelector
 
 try:
@@ -360,6 +361,7 @@ class Kanvas(FigureCanvas):
         self.koncGood = None
         self.koncBad = None
         self.koncKorekcija = None
+        self.koncKorekcijaBad = None
         self.leftLimit = None
         self.rightLimit = None
         #elementi za zero graf
@@ -367,6 +369,7 @@ class Kanvas(FigureCanvas):
         self.zeroBad = None
         self.zeroLine = None
         self.zeroKorekcija = None
+        self.zeroKorekcijaBad = None
         self.zeroTopLimit = None
         self.zeroLowLimit = None
         #elementi za span graf
@@ -374,6 +377,7 @@ class Kanvas(FigureCanvas):
         self.spanBad = None
         self.spanLine = None
         self.spanKorekcija = None
+        self.spanKorekcijaBad = None
         self.spanTopLimit = None
         self.spanLowLimit = None
 
@@ -433,23 +437,26 @@ class Kanvas(FigureCanvas):
         curves = {'KONC_GOOD':self.koncGood,
                   'KONC_BAD':self.koncBad,
                   'KONC_KOREKCIJA':self.koncKorekcija,
+                  'KONC_KOREKCIJA_BAD':self.koncKorekcijaBad,
                   'KONC_LEFT_LIMIT':self.leftLimit,
                   'KONC_RIGHT_LIMIT':self.rightLimit,
                   'ZERO_GOOD':self.zeroGood,
                   'ZERO_BAD':self.zeroBad,
                   'ZERO_LINE':self.zeroLine,
                   'ZERO_KOREKCIJA':self.zeroKorekcija,
+                  'ZERO_KOREKCIJA_BAD':self.zeroKorekcijaBad,
                   'ZERO_TOP_LIMIT':self.zeroTopLimit,
                   'ZERO_LOW_LIMIT':self.zeroLowLimit,
                   'SPAN_GOOD':self.spanGood,
                   'SPAN_BAD':self.spanBad,
                   'SPAN_LINE':self.spanLine,
                   'SPAN_KOREKCIJA':self.spanKorekcija,
+                  'SPAN_KOREKCIJA_BAD':self.spanKorekcijaBad,
                   'SPAN_TOP_LIMIT':self.spanTopLimit,
                   'SPAN_LOW_LIMIT':self.spanLowLimit}
 
         for section, lajnObjekt in curves.items():
-            if lajnObjekt != None:
+            if lajnObjekt is not None:
                 for option, geter in func_getters.items():
                     #dohvati odgovarajuci setter
                     tmpfunc = getattr(lajnObjekt, geter)
@@ -565,21 +572,29 @@ class Kanvas(FigureCanvas):
     def crtaj_zero(self):
         frejmZero = self.zeroModel.datafrejm
         indeks = list(frejmZero.index)
-        #granice
-        topLim = list(frejmZero['maxDozvoljeno'].astype(float))
-        lowLim = list(frejmZero['minDozvoljeno'].astype(float))
-        preko = [i > j for i, j in zip(list(frejmZero['zero']), topLim)]
-        ispod = [i < j for i, j in zip(list(frejmZero['zero']), lowLim)]
-        badflags = [i or j for i, j in zip(preko, ispod)]
-        goodflags = [not i for i in badflags]
-        dobri = frejmZero.loc[goodflags, 'zero'].astype(float)
-        dobri = dobri.reindex(indeks)
-        losi = frejmZero.loc[badflags, 'zero'].astype(float)
-        losi = losi.reindex(indeks)
+        #conditions
+        ok = frejmZero[(frejmZero['zero']<=frejmZero['maxDozvoljeno'])&(frejmZero['zero']>=frejmZero['minDozvoljeno'])]
+        bad = frejmZero[(frejmZero['zero']>frejmZero['maxDozvoljeno'])|(frejmZero['zero']<frejmZero['minDozvoljeno'])]
+        korekcijaOk = frejmZero[(frejmZero['korekcija']<=frejmZero['maxDozvoljeno'])&(frejmZero['korekcija']>=frejmZero['minDozvoljeno'])]
+        korekcijaBad = frejmZero[(frejmZero['korekcija']>frejmZero['maxDozvoljeno'])|(frejmZero['korekcija']<frejmZero['minDozvoljeno'])]
+        #reindex
+        ok = ok.reindex(indeks)
+        bad = bad.reindex(indeks)
+        korekcijaOk = korekcijaOk.reindex(indeks)
+        korekcijaBad = korekcijaBad.reindex(indeks)
+        #samo stupci od interesa
+        ok = list(ok['zero'].astype(float))
+        bad = list(bad['zero'].astype(float))
+        korekcijaOk = list(korekcijaOk['korekcija'].astype(float))
+        korekcijaBad = list(korekcijaBad['korekcija'].astype(float))
+
+        zeroLinija = self.axesZ.axhline(0.0,
+                                        label='0 line',
+                                        color='black')
 
         self.zeroTopLimit, = self.axesZ.plot(
             indeks,
-            topLim,
+            frejmZero['maxDozvoljeno'].astype(float),
             label=self.cfgGraf.get_konfig_option('ZERO_TOP_LIMIT', 'label', 'Max dozvoljeni'),
             linestyle=self.cfgGraf.get_konfig_option('ZERO_TOP_LIMIT', 'linestyle', '--'),
             drawstyle=self.cfgGraf.get_konfig_option('ZERO_TOP_LIMIT', 'drawstyle', 'default'),
@@ -592,7 +607,7 @@ class Kanvas(FigureCanvas):
 
         self.zeroLowLimit, = self.axesZ.plot(
             indeks,
-            lowLim,
+            frejmZero['minDozvoljeno'].astype(float),
             label=self.cfgGraf.get_konfig_option('ZERO_LOW_LIMIT', 'label', 'Min dozvoljeni'),
             linestyle=self.cfgGraf.get_konfig_option('ZERO_LOW_LIMIT', 'linestyle', '--'),
             drawstyle=self.cfgGraf.get_konfig_option('ZERO_LOW_LIMIT', 'drawstyle', 'default'),
@@ -618,7 +633,7 @@ class Kanvas(FigureCanvas):
 
         self.zeroGood, = self.axesZ.plot(
             indeks,
-            dobri,
+            ok,
             label=self.cfgGraf.get_konfig_option('ZERO_GOOD', 'label', 'Zero ok'),
             linestyle=self.cfgGraf.get_konfig_option('ZERO_GOOD', 'linestyle', 'None'),
             drawstyle=self.cfgGraf.get_konfig_option('ZERO_GOOD', 'drawstyle', 'default'),
@@ -631,7 +646,7 @@ class Kanvas(FigureCanvas):
 
         self.zeroBad, = self.axesZ.plot(
             indeks,
-            losi,
+            bad,
             label=self.cfgGraf.get_konfig_option('ZERO_BAD', 'label', 'Zero bad'),
             linestyle=self.cfgGraf.get_konfig_option('ZERO_BAD', 'linestyle', 'None'),
             drawstyle=self.cfgGraf.get_konfig_option('ZERO_BAD', 'drawstyle', 'default'),
@@ -644,7 +659,7 @@ class Kanvas(FigureCanvas):
 
         self.zeroKorekcija, = self.axesZ.plot(
             indeks,
-            frejmZero['korekcija'].astype(float),
+            korekcijaOk,
             label=self.cfgGraf.get_konfig_option('ZERO_KOREKCIJA', 'label', 'Korekcija'),
             linestyle=self.cfgGraf.get_konfig_option('ZERO_KOREKCIJA', 'linestyle', '-'),
             drawstyle=self.cfgGraf.get_konfig_option('ZERO_KOREKCIJA', 'drawstyle', 'default'),
@@ -655,24 +670,41 @@ class Kanvas(FigureCanvas):
             markerfacecolor=self.cfgGraf.get_konfig_option('ZERO_KOREKCIJA', 'markerfacecolor', 'black'),
             markeredgecolor=self.cfgGraf.get_konfig_option('ZERO_KOREKCIJA', 'markeredgecolor', 'black'))
 
+        self.zeroKorekcijaBad, = self.axesZ.plot(
+            indeks,
+            korekcijaBad,
+            label=self.cfgGraf.get_konfig_option('ZERO_KOREKCIJA_BAD', 'label', 'Korekcija bad'),
+            linestyle=self.cfgGraf.get_konfig_option('ZERO_KOREKCIJA_BAD', 'linestyle', '-'),
+            drawstyle=self.cfgGraf.get_konfig_option('ZERO_KOREKCIJA_BAD', 'drawstyle', 'default'),
+            linewidth=self.cfgGraf.get_konfig_option('ZERO_KOREKCIJA_BAD', 'linewidth', 1.2),
+            color=self.cfgGraf.get_konfig_option('ZERO_KOREKCIJA_BAD', 'linecolor', 'red'),
+            marker=self.cfgGraf.get_konfig_option('ZERO_KOREKCIJA_BAD', 'markerstyle', 'None'),
+            markersize=self.cfgGraf.get_konfig_option('ZERO_KOREKCIJA_BAD', 'markersize', 6),
+            markerfacecolor=self.cfgGraf.get_konfig_option('ZERO_KOREKCIJA_BAD', 'markerfacecolor', 'red'),
+            markeredgecolor=self.cfgGraf.get_konfig_option('ZERO_KOREKCIJA_BAD', 'markeredgecolor', 'red'))
+
+
     def crtaj_span(self):
         frejmSpan = self.spanModel.datafrejm
         indeks = list(frejmSpan.index)
-        #granice
-        topLim = list(frejmSpan['maxDozvoljeno'].astype(float))
-        lowLim = list(frejmSpan['minDozvoljeno'].astype(float))
-        preko = [i > j for i, j in zip(list(frejmSpan['span']), topLim)]
-        ispod = [i < j for i, j in zip(list(frejmSpan['span']), lowLim)]
-        badflags = [i or j for i, j in zip(preko, ispod)]
-        goodflags = [not i for i in badflags]
-        dobri = frejmSpan.loc[goodflags, 'span'].astype(float)
-        dobri = dobri.reindex(indeks)
-        losi = frejmSpan.loc[badflags, 'span'].astype(float)
-        losi = losi.reindex(indeks)
+        ok = frejmSpan[(frejmSpan['span']<=frejmSpan['maxDozvoljeno'])&(frejmSpan['span']>=frejmSpan['minDozvoljeno'])]
+        bad = frejmSpan[(frejmSpan['span']>frejmSpan['maxDozvoljeno'])|(frejmSpan['span']<frejmSpan['minDozvoljeno'])]
+        korekcijaOk = frejmSpan[(frejmSpan['korekcija']<=frejmSpan['maxDozvoljeno'])&(frejmSpan['korekcija']>=frejmSpan['minDozvoljeno'])]
+        korekcijaBad = frejmSpan[(frejmSpan['korekcija']>frejmSpan['maxDozvoljeno'])|(frejmSpan['korekcija']<frejmSpan['minDozvoljeno'])]
+        #reindex
+        ok = ok.reindex(indeks)
+        bad = bad.reindex(indeks)
+        korekcijaOk = korekcijaOk.reindex(indeks)
+        korekcijaBad = korekcijaBad.reindex(indeks)
+        #samo stupci od interesa
+        ok = list(ok['span'].astype(float))
+        bad = list(bad['span'].astype(float))
+        korekcijaOk = list(korekcijaOk['korekcija'].astype(float))
+        korekcijaBad = list(korekcijaBad['korekcija'].astype(float))
 
         self.spanTopLimit, = self.axesS.plot(
             indeks,
-            topLim,
+            frejmSpan['maxDozvoljeno'].astype(float),
             label=self.cfgGraf.get_konfig_option('SPAN_TOP_LIMIT', 'label', 'Max dozvoljeni'),
             linestyle=self.cfgGraf.get_konfig_option('SPAN_TOP_LIMIT', 'linestyle', '--'),
             drawstyle=self.cfgGraf.get_konfig_option('SPAN_TOP_LIMIT', 'drawstyle', 'default'),
@@ -685,7 +717,7 @@ class Kanvas(FigureCanvas):
 
         self.spanLowLimit, = self.axesS.plot(
             indeks,
-            lowLim,
+            frejmSpan['minDozvoljeno'].astype(float),
             label=self.cfgGraf.get_konfig_option('SPAN_LOW_LIMIT', 'label', 'Min dozvoljeni'),
             linestyle=self.cfgGraf.get_konfig_option('SPAN_LOW_LIMIT', 'linestyle', '--'),
             drawstyle=self.cfgGraf.get_konfig_option('SPAN_LOW_LIMIT', 'drawstyle', 'default'),
@@ -711,7 +743,7 @@ class Kanvas(FigureCanvas):
 
         self.spanGood, = self.axesS.plot(
             indeks,
-            dobri,
+            ok,
             label=self.cfgGraf.get_konfig_option('SPAN_GOOD', 'label', 'Span ok'),
             linestyle=self.cfgGraf.get_konfig_option('SPAN_GOOD', 'linestyle', 'None'),
             drawstyle=self.cfgGraf.get_konfig_option('SPAN_GOOD', 'drawstyle', 'default'),
@@ -724,7 +756,7 @@ class Kanvas(FigureCanvas):
 
         self.spanBad, = self.axesS.plot(
             indeks,
-            losi,
+            bad,
             label=self.cfgGraf.get_konfig_option('SPAN_BAD', 'label', 'Span bad'),
             linestyle=self.cfgGraf.get_konfig_option('SPAN_BAD', 'linestyle', 'None'),
             drawstyle=self.cfgGraf.get_konfig_option('SPAN_BAD', 'drawstyle', 'default'),
@@ -737,7 +769,7 @@ class Kanvas(FigureCanvas):
 
         self.spanKorekcija, = self.axesS.plot(
             indeks,
-            frejmSpan['korekcija'].astype(float),
+            korekcijaOk,
             label=self.cfgGraf.get_konfig_option('SPAN_KOREKCIJA', 'label', 'Korekcija'),
             linestyle=self.cfgGraf.get_konfig_option('SPAN_KOREKCIJA', 'linestyle', '-'),
             drawstyle=self.cfgGraf.get_konfig_option('SPAN_KOREKCIJA', 'drawstyle', 'default'),
@@ -748,51 +780,71 @@ class Kanvas(FigureCanvas):
             markerfacecolor=self.cfgGraf.get_konfig_option('SPAN_KOREKCIJA', 'markerfacecolor', 'black'),
             markeredgecolor=self.cfgGraf.get_konfig_option('SPAN_KOREKCIJA', 'markeredgecolor', 'black'))
 
+        self.spanKorekcijaBad, = self.axesS.plot(
+            indeks,
+            korekcijaBad,
+            label=self.cfgGraf.get_konfig_option('SPAN_KOREKCIJA_BAD', 'label', 'Korekcija bad'),
+            linestyle=self.cfgGraf.get_konfig_option('SPAN_KOREKCIJA_BAD', 'linestyle', '-'),
+            drawstyle=self.cfgGraf.get_konfig_option('SPAN_KOREKCIJA_BAD', 'drawstyle', 'default'),
+            linewidth=self.cfgGraf.get_konfig_option('SPAN_KOREKCIJA_BAD', 'linewidth', 1.2),
+            color=self.cfgGraf.get_konfig_option('SPAN_KOREKCIJA_BAD', 'linecolor', 'red'),
+            marker=self.cfgGraf.get_konfig_option('SPAN_KOREKCIJA_BAD', 'markerstyle', 'None'),
+            markersize=self.cfgGraf.get_konfig_option('SPAN_KOREKCIJA_BAD', 'markersize', 6),
+            markerfacecolor=self.cfgGraf.get_konfig_option('SPAN_KOREKCIJA_BAD', 'markerfacecolor', 'red'),
+            markeredgecolor=self.cfgGraf.get_konfig_option('SPAN_KOREKCIJA_BAD', 'markeredgecolor', 'red'))
+
     def crtaj_koncentracija(self):
         ##### priprema podataka za crtanje koncentracija #####
         frejmKonc = self.koncModel.datafrejm
         indeks = list(frejmKonc.index)
-        #dobro flagirani
-        goodData = frejmKonc[frejmKonc['flag'] >= 0]
-        goodData = goodData.reindex(indeks)
-        #lose flagirani
-        badData = frejmKonc[frejmKonc['flag'] < 0]
-        badData = badData.reindex(indeks)
+
+        ok = frejmKonc[frejmKonc['flag']>0]
+        bad = frejmKonc[frejmKonc['flag']<0]
+        korekcijaOk = frejmKonc[frejmKonc['korekcija']>=frejmKonc['LDL']]
+        korekcijaBad = frejmKonc[frejmKonc['korekcija']<frejmKonc['LDL']]
+        #count korektiranih manjih od 0 i manjih od ldl
+        korektirani_manji_od_nule = frejmKonc[frejmKonc['korekcija'] < 0].count()['korekcija']
+        korektirani_manji_od_LDL = korekcijaBad.count()['korekcija']
+        broj_dobrih_mjerenja = ok.count()['koncentracija']
+        broj_dobrih_korektiranih = korekcijaOk.count()['korekcija']
+        #reindex
+        ok = ok.reindex(indeks)
+        bad = bad.reindex(indeks)
+        korekcijaOk = korekcijaOk.reindex(indeks)
+        korekcijaBad = korekcijaBad.reindex(indeks)
+        #samo stupci od interesa
+        ok = list(ok['koncentracija'].astype(float))
+        bad = list(bad['koncentracija'].astype(float))
+        korekcijaOk = list(korekcijaOk['korekcija'].astype(float))
+        korekcijaBad = list(korekcijaBad['korekcija'].astype(float))
 
         self.xlim_original = self.get_prosirene_x_granice(indeks[0], indeks[-1], t=120)
         self.axesC.set_xlim(self.xlim_original)
-        #self.axesC.xaxis_date() #force date...
 
-        #korektirani = goodData['korekcija'].astype(float)
-        korektirani_manji_od_nule = goodData[goodData['korekcija'] < 0].count()['korekcija']
-        if 'LDL' in goodData:
-            c = [i<j for i, j in zip(goodData['korekcija'], goodData['LDL'])]
-            korektirani_manji_od_LDL = sum(c)
-        else:
-            korektirani_manji_od_LDL = 0
-
-        #signlaiziraj update labela za obuhvat
-        #TODO!
+        #signlaiziraj update labela za obuhvat...
         mapa = {'ocekivano':len(indeks),
-                'broj_mjerenja':goodData.count()['koncentracija'],
-                'broj_korektiranih':goodData.count()['korekcija'],
+                'broj_mjerenja':broj_dobrih_mjerenja,
+                'broj_korektiranih':broj_dobrih_korektiranih,
                 'ispod_nula':korektirani_manji_od_nule,
                 'ispod_LDL':korektirani_manji_od_LDL}
         self.emit(QtCore.SIGNAL('update_data_point_count(PyQt_PyObject)'), mapa)
 
-        if 'LDL' in frejmKonc.columns:
-            self.koncLDL = self.axesC.plot(
-                indeks,
-                frejmKonc['LDL'],
-                label=self.cfgGraf.get_konfig_option('KONC_LDL', 'label', 'LDL'),
-                linestyle=self.cfgGraf.get_konfig_option('KONC_LDL', 'linestyle', '-'),
-                drawstyle=self.cfgGraf.get_konfig_option('KONC_LDL', 'drawstyle', 'default'),
-                linewidth=self.cfgGraf.get_konfig_option('KONC_LDL', 'linewidth', 1.4),
-                color=self.cfgGraf.get_konfig_option('KONC_LDL', 'linecolor', 'red'),
-                marker=self.cfgGraf.get_konfig_option('KONC_LDL', 'markerstyle', 'None'),
-                markersize=self.cfgGraf.get_konfig_option('KONC_LDL', 'markersize', 6),
-                markerfacecolor=self.cfgGraf.get_konfig_option('KONC_LDL', 'markerfacecolor', 'red'),
-                markeredgecolor=self.cfgGraf.get_konfig_option('KONC_LDL', 'markeredgecolor', 'red'))
+        zeroLinija = self.axesC.axhline(0.0,
+                                        label='0 line',
+                                        color='black')
+
+        self.koncLDL = self.axesC.plot(
+            indeks,
+            frejmKonc['LDL'].astype(float),
+            label=self.cfgGraf.get_konfig_option('KONC_LDL', 'label', 'LDL'),
+            linestyle=self.cfgGraf.get_konfig_option('KONC_LDL', 'linestyle', '-'),
+            drawstyle=self.cfgGraf.get_konfig_option('KONC_LDL', 'drawstyle', 'default'),
+            linewidth=self.cfgGraf.get_konfig_option('KONC_LDL', 'linewidth', 1.4),
+            color=self.cfgGraf.get_konfig_option('KONC_LDL', 'linecolor', 'red'),
+            marker=self.cfgGraf.get_konfig_option('KONC_LDL', 'markerstyle', 'None'),
+            markersize=self.cfgGraf.get_konfig_option('KONC_LDL', 'markersize', 6),
+            markerfacecolor=self.cfgGraf.get_konfig_option('KONC_LDL', 'markerfacecolor', 'red'),
+            markeredgecolor=self.cfgGraf.get_konfig_option('KONC_LDL', 'markeredgecolor', 'red'))
 
         self.leftLimit = self.axesC.axvline(
             indeks[0],
@@ -820,7 +872,7 @@ class Kanvas(FigureCanvas):
 
         self.koncGood, = self.axesC.plot(
             indeks,
-            goodData['koncentracija'].astype(float),
+            ok,
             label=self.cfgGraf.get_konfig_option('KONC_GOOD', 'label', 'Dobar flag'),
             linestyle=self.cfgGraf.get_konfig_option('KONC_GOOD', 'linestyle', '-'),
             drawstyle=self.cfgGraf.get_konfig_option('KONC_GOOD', 'drawstyle', 'default'),
@@ -833,7 +885,7 @@ class Kanvas(FigureCanvas):
 
         self.koncBad, = self.axesC.plot(
             indeks,
-            badData['koncentracija'].astype(float),
+            bad,
             label=self.cfgGraf.get_konfig_option('KONC_BAD', 'label', 'Los flag'),
             linestyle=self.cfgGraf.get_konfig_option('KONC_BAD', 'linestyle', '-'),
             drawstyle=self.cfgGraf.get_konfig_option('KONC_BAD', 'drawstyle', 'default'),
@@ -846,7 +898,7 @@ class Kanvas(FigureCanvas):
 
         self.koncKorekcija, = self.axesC.plot(
             indeks,
-            goodData['korekcija'].astype(float),
+            korekcijaOk,
             label=self.cfgGraf.get_konfig_option('KONC_KOREKCIJA', 'label', 'Korekcija'),
             linestyle=self.cfgGraf.get_konfig_option('KONC_KOREKCIJA', 'linestyle', '-'),
             drawstyle=self.cfgGraf.get_konfig_option('KONC_KOREKCIJA', 'drawstyle', 'default'),
@@ -856,6 +908,19 @@ class Kanvas(FigureCanvas):
             markersize=self.cfgGraf.get_konfig_option('KONC_KOREKCIJA', 'markersize', 6),
             markerfacecolor=self.cfgGraf.get_konfig_option('KONC_KOREKCIJA', 'markerfacecolor', 'black'),
             markeredgecolor=self.cfgGraf.get_konfig_option('KONC_KOREKCIJA', 'markeredgecolor', 'black'))
+
+        self.koncKorekcijaBad, = self.axesC.plot(
+            indeks,
+            korekcijaBad,
+            label=self.cfgGraf.get_konfig_option('KONC_KOREKCIJA_BAD', 'label', 'Korekcija bad'),
+            linestyle=self.cfgGraf.get_konfig_option('KONC_KOREKCIJA_BAD', 'linestyle', '-'),
+            drawstyle=self.cfgGraf.get_konfig_option('KONC_KOREKCIJA_BAD', 'drawstyle', 'default'),
+            linewidth=self.cfgGraf.get_konfig_option('KONC_KOREKCIJA_BAD', 'linewidth', 1.2),
+            color=self.cfgGraf.get_konfig_option('KONC_KOREKCIJA_BAD', 'linecolor', 'red'),
+            marker=self.cfgGraf.get_konfig_option('KONC_KOREKCIJA_BAD', 'markerstyle', 'None'),
+            markersize=self.cfgGraf.get_konfig_option('KONC_KOREKCIJA_BAD', 'markersize', 6),
+            markerfacecolor=self.cfgGraf.get_konfig_option('KONC_KOREKCIJA_BAD', 'markerfacecolor', 'red'),
+            markeredgecolor=self.cfgGraf.get_konfig_option('KONC_KOREKCIJA_BAD', 'markeredgecolor', 'red'))
 
     def sjencaj_lose_zero_span(self):
         """sjencanje losih zero i span raspona"""
@@ -921,21 +986,24 @@ class Kanvas(FigureCanvas):
 
     def on_pick(self, event):
         #mora biti nacrtan, unutar osi i drugi alati moraju biti ugaseni
-        if self.isDrawn and event.inaxes in [self.axesC, self.axesZ, self.axesS]:
+        if self.isDrawn and event.inaxes in [self.axesC, self.axesZ, self.axesS] and not self.otherToolsInUse:
             if event.button == 1:
                 #left click
                 xpoint = self.adaptiraj_tocku_od_pick_eventa(event)
-                #TODO! konc label update
-                t, val = xpoint, self.koncModel.datafrejm.loc[xpoint, 'koncentracija']
-                self.emit(QtCore.SIGNAL('update_konc_label(PyQt_PyObject)'),(t, val))
-                #TODO! nadji najblizi span
+                try:
+                    t, val, kor = xpoint, self.koncModel.datafrejm.loc[xpoint, 'koncentracija'], self.koncModel.datafrejm.loc[xpoint, 'korekcija']
+                except KeyError:
+                    #click je izvan dozvoljnog raspona podataka..
+                    t, val, kor = 'n/a', 'n/a', 'n/a'
+                self.emit(QtCore.SIGNAL('update_konc_label(PyQt_PyObject)'),(t, val, kor))
+                #nadji najblizi span
                 tajm = self._mpltime_to_pdtime(event.xdata)
-                t, val = self.spanModel.get_najblizu_vrijednost(tajm)
-                self.emit(QtCore.SIGNAL('update_span_label(PyQt_PyObject)'), (t, val))
-                #TODO! nadji najblizi zero
+                t, val, kor = self.spanModel.get_najblizu_vrijednost(tajm)
+                self.emit(QtCore.SIGNAL('update_span_label(PyQt_PyObject)'), (t, val, kor))
+                #nadji najblizi zero
                 tajm = self._mpltime_to_pdtime(event.xdata)
-                t, val = self.zeroModel.get_najblizu_vrijednost(tajm)
-                self.emit(QtCore.SIGNAL('update_zero_label(PyQt_PyObject)'), (t, val))
+                t, val, kor = self.zeroModel.get_najblizu_vrijednost(tajm)
+                self.emit(QtCore.SIGNAL('update_zero_label(PyQt_PyObject)'), (t, val, kor))
                 if event.inaxes == self.axesC:
                     #koncentraija canvas
                     red = self.koncModel.get_index_position(xpoint)
@@ -1117,9 +1185,12 @@ class Kanvas(FigureCanvas):
             self.spanGood.set_visible(not self.spanGood.get_visible())
             self.spanBad.set_visible(not self.spanBad.get_visible())
         elif label == 'korekcija':
-            self.koncKorGood.set_visible(not self.koncKorekcija.get_visible())
-            self.zeroKorGood.set_visible(not self.zeroKorekcija.get_visible())
-            self.spanKorGood.set_visible(not self.spanKorekcija.get_visible())
+            self.koncKorekcija.set_visible(not self.koncKorekcija.get_visible())
+            self.koncKorekcijaBad.set_visible(not self.koncKorekcijaBad.get_visible())
+            self.zeroKorekcija.set_visible(not self.zeroKorekcija.get_visible())
+            self.zeroKorekcijaBad.set_visible(not self.zeroKorekcijaBad.get_visible())
+            self.spanKorekcija.set_visible(not self.spanKorekcija.get_visible())
+            self.spanKorekcijaBad.set_visible(not self.spanKorekcijaBad.get_visible())
         elif label == 'legenda':
             self.draw_legend(not self.isLegendDrawn)
         elif label == 'grid':

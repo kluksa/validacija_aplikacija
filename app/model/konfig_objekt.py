@@ -6,7 +6,15 @@ import matplotlib.colors as colors
 
 class MainKonfig(object):
     def __init__(self, cfgFile, parent=None):
-        self.cfg = configparser.ConfigParser()
+        self.cfg = configparser.ConfigParser(
+            defaults={ 'REST' :
+                           { 'program_mjerenja' : 'http://172.20.0.178:8080/SKZ-war/webresources/dhz.skz.rs.programmjerenja/zakljucani',
+                             'sirovi_podaci' : 'http://172.20.0.178:8080/SKZ-war/webresources/dhz.skz.rs.sirovipodaci',
+                             'status_map' : 'http://172.20.0.178:8080/SKZ-war/webresources/dhz.skz.rs.sirovipodaci/statusi',
+                             'zero_span_podaci' : 'http://172.20.0.178:8080/SKZ-war/webresources/dhz.skz.rs.zerospan'
+                            }
+                       }
+        )
         self.LOG_LEVELS = {'DEBUG': logging.DEBUG,
                            'INFO': logging.INFO,
                            'WARNING': logging.WARNING,
