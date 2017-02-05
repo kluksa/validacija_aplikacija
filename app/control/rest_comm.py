@@ -36,7 +36,7 @@ class DataReaderAndCombiner(object):
         """
         try:
             # dohvati status bit info
-            self._status_bits = self.citac.get_statusMap()
+            self._status_bits = self.citac.get_status_map()
             # prazni frejmovi u koje ce se spremati podaci
             master_konc_frm = pd.DataFrame()
             master_zero_frm = pd.DataFrame()
@@ -85,7 +85,7 @@ class DataReaderAndCombiner(object):
 
             fullraspon = pd.date_range(start=start, end=kraj, freq=frek)
             # konverzija status int to string za koncentracijski frejm
-            statstr = [self._statusInt_to_statusString(i) for i in master_konc_frm.loc[:, 'status']]
+            statstr = [self._status_int_to_string(i) for i in master_konc_frm.loc[:, 'status']]
             master_konc_frm.loc[:, 'statusString'] = statstr
             # reindex koncentracijski data zbog rupa u podacima (ako nedostaju rubni podaci)
             master_konc_frm = master_konc_frm.reindex(fullraspon)
@@ -123,7 +123,7 @@ class DataReaderAndCombiner(object):
         opis = ",".join(flaglist)
         return opis
 
-    def _statusInt_to_statusString(self, sint):
+    def _status_int_to_string(self, sint):
         if np.isnan(sint):
             return 'Status nije definiran'
         sint = int(sint)
@@ -156,17 +156,17 @@ class RESTZahtjev(object):
     def logmeout(self):
         self.user, self.pswd = ('', '')
 
-    def get_broj_u_satu(self, programMjerenjaId):
+    def get_broj_u_satu(self, program_mjerenja_id):
         """
         Metoda dohvaca minimalni broj podataka u satu za neki programMjerenjaID.
         Output je integer
         """
-        url = self.program_url + '/podaci/' + str(programMjerenjaId)
+        url = self.program_url + '/podaci/' + str(program_mjerenja_id)
         head = {"accept": "application/json"}
         out = json.loads(self._get_request(url, '', head))
         return int(out['brojUSatu'])
 
-    def get_statusMap(self):
+    def get_status_map(self):
         """
         Metoda dohvaca podatke o statusima sa REST servisa
         vraca mapu (dictionary):
@@ -180,19 +180,19 @@ class RESTZahtjev(object):
             rezultat[x[i]['i']] = x[i]['s']
         return rezultat
 
-    def get_sirovi(self, programMjerenjaId, datum):
+    def get_sirovi(self, program_mjerenja_id, datum):
         """
         Za zadani program mjerenja (int) i datum (string, formata YYYY-MM-DD)
         dohvati sirove (minutne) podatke sa REST servisa.
         Output funkcije je json string.
         """
-        url = self.sirovi_podaci_url + '/' + str(programMjerenjaId) + '/' + datum
+        url = self.sirovi_podaci_url + '/' + str(program_mjerenja_id) + '/' + datum
         payload = {"id": "getPodaci", "name": "GET", "broj_dana": 1}
         head = {"accept": "application/json"}
         frejm = self.podatak_adapter.adaptiraj(self._get_request(url, payload, head))
         return frejm
 
-    def get_zero_span(self, programMjerenja, datum, kolicina):
+    def get_zero_span(self, program_mjerenja_id, datum, kolicina):
         """
         Dohvati zero-span vrijednosti
         ulazni parametri su:
@@ -204,7 +204,7 @@ class RESTZahtjev(object):
         doslo do problema prilikom rada.
         """
         # dat = datum.strftime('%Y-%m-%d')
-        url = self.zero_span_podaci_url + '/' + str(programMjerenja) + '/' + datum
+        url = self.zero_span_podaci_url + '/' + str(program_mjerenja_id) + '/' + datum
         payload = {"id": "getZeroSpanLista", "name": "GET", "broj_dana": int(kolicina)}
         head = {"accept": "application/json"}
         zero, span = self.zs_adapter.adaptiraj(self._get_request(url, payload, head))
