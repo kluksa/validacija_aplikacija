@@ -5,7 +5,7 @@ import pandas as pd
 
 
 class MalformedJSONException(Exception):
-    '''Iznimka kada ne valja ulazni JSON'''
+    """Iznimka kada ne valja ulazni JSON"""
 
 
 class Adapter:
@@ -29,12 +29,13 @@ class Adapter:
 
 
 class ZeroSpanAdapter(Adapter):
+    # REVIEW mislim da je ovo pogresno. Adapter bi trebao poslati jedan Z/S dataframe, a onda neka dokument radi sa njime sto hoce
     def __init__(self):
         super(Adapter,self).__init__()
         self.obavezni_json_stupci = ['vrsta', 'vrijeme', 'vrijednost', 'minDozvoljeno', 'maxDozvoljeno']
         self.frame_stupci = ['vrijednost', 'korekcija', 'minDozvoljeno', 'maxDozvoljeno', 'A', 'B', 'Sr', 'LDL']
 
-    def _napravi_frame(self, frame):
+    def _napravi_frame(self, frame: pd.DataFrame):
         frame = frame.set_index(frame['vrijeme'])
         frame.index = [i.round('Min') for i in frame.index]
         frame = frame[frame['vrijednost'] > -998.0]
@@ -85,7 +86,7 @@ class PodatakAdapter(Adapter):
                       'valjan': 'flag',
                       'statusInt': 'status'}
         df.rename(columns=rename_map, inplace=True)
-        df['koncentracija'] = df['koncentracija'].map(lambda x: x if x > -999 else np.Nan)
+        df['koncentracija'] = df['koncentracija'].map(lambda x: x if x > -999 else np.NaN)
         df['flag'] = df['flag'].map(lambda x: 1 if x else -1)
         df = pd.concat([df, pd.DataFrame(columns=['korekcija', 'A', 'B', 'Sr', 'LDL'])])
         # REVIEW sto je ovo?????????????????????

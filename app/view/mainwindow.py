@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
 
-import pandas as pd
 from PyQt4 import QtGui, QtCore, uic
 from requests.exceptions import RequestException
 
@@ -31,6 +30,8 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.kanal = None
         self.vrijemeOd = None
         self.vrijemeDo = None
+
+        self.kanal_dijalog = kanal_dijalog.KanalDijalog(self.dokument)
 
         self.dataDisplay.setModel(self.dokument.koncModel)
         self.korekcijaDisplay.setModel(self.dokument.korekcijaModel)
@@ -84,8 +85,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.action_quit.triggered.connect(self.close)
         # gumbi za add/remove/edit parametre korekcije i primjenu korekcije
 
-        # REVIEW WTF zasto emitiras signal kad ga mozes odmah obraditi????
-        self.buttonUcitaj.clicked.connect(self.ucitaj_podatke)
+        self.buttonUcitaj.clicked.connect(self.show_dijalog_za_izbor_kanala_i_datuma)
         self.buttonExport.clicked.connect(self.export_korekcije)
         self.buttonPrimjeniKorekciju.clicked.connect(self.primjeni_korekciju)
         # quit
@@ -241,59 +241,9 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
             event.ignore()
 
     def show_dijalog_za_izbor_kanala_i_datuma(self, od, do):
-        treemodel = self.dokument.treeModelProgramaMjerenja
-        dijalog = kanal_dijalog.KanalDijalog(treemodel, od=od, do=do)
-        if dijalog.exec_():
-            return dijalog.get_izbor()
+        if self.kanal_dijalog.exec_():
+            return self.kanal_dijalog.get_izbor()
 
-    def ucitaj_podatke(self):
-        """ucitavanje koncentracija, zero i span podataka"""
-        try:
-            out = self.show_dijalog_za_izbor_kanala_i_datuma(self.vrijemeOd, self.vrijemeDo)
-            if out:
-                # nije cancel exit
-                [self.kanal, self.vrijemeOd, self.vrijemeDo] = out
-            else:
-                return
-            # spinning cursor...
-            QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
-            # dohvati frejmove
-
-            tpl = self.data_reader.get_data(self.kanal, self.vrijemeOd, self.vrijemeDo)
-            master_konc_frejm, master_zero_frejm, master_span_frejm = tpl
-            # spremi frejmove u dokument #TODO! samo 1 level...
-            self.dokument.koncModel.datafrejm = master_konc_frejm
-            self.dokument.zeroModel.datafrejm = master_zero_frejm
-            self.dokument.spanModel.datafrejm = master_span_frejm
-            # set clean modela za korekcije u dokument
-            self.dokument.korekcijaModel.datafrejm = pd.DataFrame(columns=['vrijeme', 'A', 'B', 'Sr', 'remove'])
-            # TODO! sredi opis i drugi update gui labela
-            od = str(master_konc_frejm.index[0])
-            do = str(master_konc_frejm.index[-1])
-            self.dokument.set_kanal_info_string(self.kanal, od, do)
-
-            self.update_opis_grafa(self.dokument.koncModel.opis)
-            self.update_konc_labels(('n/a', 'n/a', 'n/a'))
-            self.update_zero_labels(('n/a', 'n/a', 'n/a'))
-            self.update_span_labels(('n/a', 'n/a', 'n/a'))
-            # predavanje (konc, zero, span) modela kanvasu za crtanje (primarni trigger za clear & redraw)
-            self.set_data_models_to_canvas(self.dokument.koncModel,
-                                           self.dokument.zeroModel,
-                                           self.dokument.spanModel)
-        except (AssertionError, RequestException) as e1:
-            msg = "Problem kod dohvaćanja minutnih podataka.\n\n{0}".format(str(e1))
-            logging.error(str(e1), exc_info=True)
-            QtGui.QApplication.restoreOverrideCursor()
-            self.update_opis_grafa("n/a")
-            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
-        except Exception as e2:
-            msg = "General exception. \n\n{0}".format(str(e2))
-            logging.error(str(e2), exc_info=True)
-            QtGui.QApplication.restoreOverrideCursor()
-            self.update_opis_grafa("n/a")
-            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
-        finally:
-            QtGui.QApplication.restoreOverrideCursor()
 
     def log_in(self, x):
         try:
