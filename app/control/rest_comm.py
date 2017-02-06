@@ -133,6 +133,54 @@ class DataReaderAndCombiner(object):
             self._statusLookup[sint] = rez  # store value for future lookup
         return rez
 
+class MockZahtjev():
+
+    def __init__(self, program_url = '', sirovi_podaci_url = '', status_map_url ='',
+                 zero_span_podaci_url = '', auth=('', '')):
+        self.zs_adapter = ZeroSpanAdapter()
+        self.program_adapter = ProgramMjerenjaAdapter()
+        self.podatak_adapter = PodatakAdapter()
+
+    def logmein(self, auth):
+        self.user, self.pswd = auth
+
+    def get_broj_u_satu(self, program_mjerenja_id):
+        with open ("/home/kraljevic/razvoj/python/validacija_aplikacija/test_resources/broj_u_satu.json", "r") as myfile:
+            data = myfile.readline()
+        out = json.loads(data)
+        return int(out['brojUSatu'])
+
+    def get_status_map(self):
+        with open ("/home/kraljevic/razvoj/python/validacija_aplikacija/test_resources/statusi.json", "r") as myfile:
+            data = myfile.readline()
+        x = json.loads(data)
+        rezultat = {}
+        for i in range(len(x)):
+            rezultat[x[i]['i']] = x[i]['s']
+        return rezultat
+
+
+    def get_sirovi(self, program_mjerenja_id, datum):
+        dd = datum[-2:]
+        n = 1 + int(datum[-2:]) % 10
+        fname = "/home/kraljevic/razvoj/python/validacija_aplikacija/test_resources/p" + str(n) + ".json"
+        with open (fname, "r") as myfile:
+            data = myfile.readline()
+        frejm = self.podatak_adapter.adaptiraj(data)
+        return frejm
+
+    def get_zero_span(self, program_mjerenja_id, datum, kolicina):
+        with open ("/home/kraljevic/razvoj/python/validacija_aplikacija/test_resources/zs.json", "r") as myfile:
+            data = myfile.readline()
+        zero, span = self.zs_adapter.adaptiraj(data)
+        return zero, span
+
+    def get_programe_mjerenja(self):
+        with open ("/home/kraljevic/razvoj/python/validacija_aplikacija/test_resources/program.xml", "r") as myfile:
+            data = myfile.readline()
+        out = self.program_adapter.adaptiraj(data)
+        return out
+
 
 class RESTZahtjev(object):
     """
