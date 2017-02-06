@@ -4,9 +4,6 @@ import os
 import pickle
 
 from app.model import qtmodels
-import xml.etree.ElementTree as ET
-
-
 
 
 
@@ -33,6 +30,7 @@ class Dokument(object):
         self._korekcijaModel = qtmodels.KorekcijaFrameModel()
 
     def spremi_se(self, fajlNejm):
+        # TODO funkcionalnost spremanja staviti u zasebni objekt koji onda (de)serijalizira dokument. Ovo je privremeno da pocistim kontroler
         frejmPodaci = self.dokument.koncModel.datafrejm
         frejmZero = self.dokument.zeroModel.datafrejm
         frejmSpan = self.dokument.spanModel.datafrejm

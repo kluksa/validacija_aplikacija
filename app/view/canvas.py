@@ -564,9 +564,9 @@ class Kanvas(FigureCanvas):
                 self.axesS.set_ylim((ymin-spejsing, ymax+spejsing))
             else:
                 pass
-        except Exception as err:
+        except Exception as ex:
             #do not autoscale y..
-            logging.error(str(err), exc_info=True)
+            logging.error(str(ex), exc_info=True)
             pass
 
     def crtaj_zero(self):
@@ -1084,8 +1084,8 @@ class Kanvas(FigureCanvas):
             self.draw()
             #push the drawn image to toolbar zoom stack
             self.emit(QtCore.SIGNAL('push_view_to_toolbar_zoom_stack'))
-        except Exception as err:
-            logging.error(str(err))
+        except Exception as ex:
+            logging.error(str(ex))
 
     def adaptiraj_tocku_od_pick_eventa(self, event):
         xpoint = matplotlib.dates.num2date(event.xdata) #datetime.datetime
@@ -1127,6 +1127,11 @@ class Kanvas(FigureCanvas):
         #definiranje akcija
         action1 = QtGui.QAction("Flag: dobar", menu)
         action2 = QtGui.QAction("Flag: los", menu)
+        # slaganje akcija u menu
+        menu.addAction(action1)
+        menu.addAction(action2)
+        action1.triggered.connect(functools.partial(self.promjena_flaga, flag=1000))
+        action2.triggered.connect(functools.partial(self.promjena_flaga, flag=-1000))
         if tip != 'span':
             action3 = QtGui.QAction("show koncentracija", menu)
             action3.setCheckable(True)
@@ -1149,10 +1154,6 @@ class Kanvas(FigureCanvas):
             action9 = QtGui.QAction("focus koncentracija", menu)
             action9.setCheckable(True)
             action9.setChecked(self.isKoncGrafActive)
-        #slaganje akcija u menu
-        menu.addAction(action1)
-        menu.addAction(action2)
-        if tip != 'span':
             menu.addSeparator()
             menu.addAction(action3)
             menu.addAction(action4)
@@ -1162,10 +1163,7 @@ class Kanvas(FigureCanvas):
             menu.addAction(action7)
             menu.addAction(action8)
             menu.addAction(action9)
-        #povezi akcije menua sa metodama
-        action1.triggered.connect(functools.partial(self.promjena_flaga, flag=1000))
-        action2.triggered.connect(functools.partial(self.promjena_flaga, flag=-1000))
-        if tip != 'span':
+            #povezi akcije menua sa metodama
             action3.triggered.connect(functools.partial(self.toggle_visibility_callbacks, label='koncentracija'))
             action4.triggered.connect(functools.partial(self.toggle_visibility_callbacks, label='korekcija'))
             action5.triggered.connect(functools.partial(self.toggle_visibility_callbacks, label='legenda'))
