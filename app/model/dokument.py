@@ -2,9 +2,9 @@
 import copy
 import os
 import pickle
+from operator import attrgetter
 
 from app.model import qtmodels
-
 
 
 class Dokument(object):
@@ -55,11 +55,9 @@ class Dokument(object):
 
     @mjerenja.setter
     def mjerenja(self, x):
-        if isinstance(x, dict):
+
             self._mjerenja = x
             self._konstruiraj_tree_model()
-        else:
-            raise TypeError('Ulazni argument mora biti dict, arg = {0}'.format(str(type(x))))
 
     @property
     def treeModelProgramaMjerenja(self):
@@ -133,25 +131,25 @@ class Dokument(object):
 
     def _konstruiraj_tree_model(self):
         # sredjivanje povezanih kanala (NOx grupa i PM grupa)
-        for kanal in self._mjerenja:
-            pomocni = self._get_povezane_kanale(kanal)
-            for i in pomocni:
-                self._mjerenja[kanal]['povezaniKanali'].append(i)
-            # sortiraj povezane kanale, predak je bitan zbog radio buttona
-            lista = sorted(self._mjerenja[kanal]['povezaniKanali'])
-            self._mjerenja[kanal]['povezaniKanali'] = lista
+        #        for kanal in self._mjerenja:
+        #            pomocni = self._get_povezane_kanale(kanal)
+        #            for i in pomocni:
+        #                self._mjerenja[kanal]['povezaniKanali'].append(i)
+        #            # sortiraj povezane kanale, predak je bitan zbog radio buttona
+        #            lista = sorted(self._mjerenja[kanal]['povezaniKanali'])
+        #            self._mjerenja[kanal]['povezaniKanali'] = lista
 
         drvo = qtmodels.TreeItem(['stanice', None, None, None], parent=None)
         # za svaku individualnu stanicu napravi TreeItem objekt, reference objekta spremi u dict
         stanice = []
-        for pmid in sorted(list(self._mjerenja.keys())):
-            stanica = self._mjerenja[pmid]['postajaNaziv']
-            if stanica not in stanice:
-                stanice.append(stanica)
+        for program in sorted(self._mjerenja, key=attrgetter('id')):
+            if program.naziv_postaje not in stanice:
+                stanice.append(program.naziv_postaje)
+
         stanice = sorted(stanice)
         postaje = [qtmodels.TreeItem([name, None, None, None], parent=drvo) for name in stanice]
         strPostaje = [str(i) for i in postaje]
-        for pmid in self._mjerenja:
+        for program in self._mjerenja:
             stanica = self._mjerenja[pmid]['postajaNaziv']  # parent = stanice[stanica]
             komponenta = self._mjerenja[pmid]['komponentaNaziv']
             formula = self._mjerenja[pmid]['komponentaFormula']
