@@ -5,7 +5,7 @@ import pandas as pd
 from PyQt4 import QtGui, QtCore, uic
 from requests.exceptions import RequestException
 
-from app.control.rest_comm import RESTZahtjev, DataReaderAndCombiner
+from app.control.rest_comm import RESTZahtjev, DataReaderAndCombiner, MockZahtjev
 from app.model.qtmodels import GumbDelegate
 from app.view import auth_login
 from app.view import kanal_dijalog
@@ -31,7 +31,10 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
 
         # dependency injection kroz konstruktor je puno bolji pattern od slanja konfig objekta
 
-        self.restRequest = RESTZahtjev(Konfig.rest()['program_mjerenja'], Konfig.rest()['sirovi_podaci'],
+        if True:
+            self.restRequest = MockZahtjev()
+        else:
+            self.restRequest = RESTZahtjev(Konfig.rest()['program_mjerenja'], Konfig.rest()['sirovi_podaci'],
                                        Konfig.rest()['status_map'], Konfig.rest()['zero_span_podaci'])
 
         #self.restRequest = RESTZahtjev(self.cfg.cfg['REST') #.restProgramMjerenja, self.cfg.restSiroviPodaci,
