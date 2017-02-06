@@ -10,22 +10,32 @@ from app.model.qtmodels import GumbDelegate
 from app.view import auth_login
 from app.view import kanal_dijalog
 from app.view.canvas import GrafDisplayWidget
+from app.model import konfig_objekt
+from app.model.konfig_objekt import Konfig
+
 
 MAIN_BASE, MAIN_FORM = uic.loadUiType('./app/view/ui_files/mainwindow.ui')
 
 
 class MainWindow(MAIN_BASE, MAIN_FORM):
-    def __init__(self, konfig, graf_opcije, dokument, parent=None):
+    def __init__(self, dokument, parent=None):
         super(MAIN_BASE, self).__init__(parent)
+        self.cfg = konfig_objekt.MainKonfig('konfig_params.cfg')
+        self.cfgGraf = konfig_objekt.GrafKonfig('graf_params.cfg')
+        self.setup_logging()
         self.setupUi(self)
         self.dokument = dokument
-        self.cfg = konfig
-        self.cfgGraf = graf_opcije
         self.toggle_logged_in_state(False)
-        self.kanvas = GrafDisplayWidget(self.cfg.spanSelectIcon, self.cfg.xZoomIcon, self.cfgGraf)
+        self.kanvas = GrafDisplayWidget(Konfig.icons()['spanSelectIcon'], Konfig.icons()['xZoomIcon'], self.cfgGraf)
         self.grafLayout.addWidget(self.kanvas)
-        self.restRequest = RESTZahtjev(konfig.restProgramMjerenja, konfig.restSiroviPodaci,
-                                       konfig.restStatusMap, konfig.restZeroSpanPodaci)
+
+        # dependency injection kroz konstruktor je puno bolji pattern od slanja konfig objekta
+
+        self.restRequest = RESTZahtjev(Konfig.rest()['program_mjerenja'], Konfig.rest()['sirovi_podaci'],
+                                       Konfig.rest()['status_map'], Konfig.rest()['zero_span_podaci'])
+
+        #self.restRequest = RESTZahtjev(self.cfg.cfg['REST') #.restProgramMjerenja, self.cfg.restSiroviPodaci,
+                                       # self.cfg.restStatusMap, self.cfg.restZeroSpanPodaci)
         self.data_reader = DataReaderAndCombiner(self.restRequest)
 
         self.kanal = None
@@ -37,11 +47,27 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
 
         self.sredi_delegate_za_tablicu()
 
+        self.program_mjerenja_dlg = kanal_dijalog.KanalDijalog()
+
         # custom persistent delegates...
         # TODO! triple click fail... treba srediti persistent editor na cijeli stupac
         # self.korekcijaDisplay.setItemDelegateForColumn(4, GumbDelegate(self))
 
         self.setup_connections()
+
+    def setup_logging(self):
+        """Inicijalizacija loggera"""
+        try:
+            logging.basicConfig(level=Konfig.log('lvl'),
+                                filename=Konfig.log('file'),
+                                filemode=Konfig.log('mode'),
+                                format='{levelname}:::{asctime}:::{module}:::{funcName}:::LOC:{lineno}:::{message}',
+                                style='{')
+        except Exception as err:
+            print('Pogreska prilikom konfiguracije loggera.')
+            print(str(err))
+            raise SystemExit('Kriticna greska, izlaz iz aplikacije.')
+
 
     def primjeni_korekciju(self):
         try:
@@ -84,7 +110,6 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.action_quit.triggered.connect(self.close)
         # gumbi za add/remove/edit parametre korekcije i primjenu korekcije
 
-        # REVIEW WTF zasto emitiras signal kad ga mozes odmah obraditi????
         self.buttonUcitaj.clicked.connect(self.ucitaj_podatke)
         self.buttonExport.clicked.connect(self.export_korekcije)
         self.buttonPrimjeniKorekciju.clicked.connect(self.primjeni_korekciju)
@@ -240,25 +265,101 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         else:
             event.ignore()
 
-    def show_dijalog_za_izbor_kanala_i_datuma(self, od, do):
-        treemodel = self.dokument.treeModelProgramaMjerenja
-        dijalog = kanal_dijalog.KanalDijalog(treemodel, od=od, do=do)
-        if dijalog.exec_():
-            return dijalog.get_izbor()
+
+    def log_in(self, x):
+        try:
+            self.restRequest.logmein(x)
+            self.init_program_mjerenja()
+            self.toggle_logged_in_state(True)
+        except Exception as err:
+            logging.error(str(err), exc_info=True)
+            logging.error('logging out')
+            # try again loop
+            odgovor = QtGui.QMessageBox.question(self,
+                                                 'Ponovi login',
+                                                 'Neuspješan login, želite li probati ponovo?',
+                                                 QtGui.QMessageBox.Ok | QtGui.QMessageBox.No)
+            if odgovor == QtGui.QMessageBox.Ok:
+                self.handle_login()
+            else:
+                QtGui.QApplication.quit()
+
+# REVIEW ovo je besmisleno. Zbog 3 linije koda imaš dupli exception handling
+    def init_program_mjerenja(self):
+        try:
+            QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+            self.dokument.mjerenja = self.restRequest.get_programe_mjerenja()
+            self.program_mjerenja_dlg.set_program(self.dokument.treeModelProgramaMjerenja)
+        except (AssertionError, RequestException) as e1:
+            msg = "Problem kod dohvaćanja podataka o mjerenjima.\n\n{0}".format(str(e1))
+            logging.error(str(e1), exc_info=True)
+            QtGui.QApplication.restoreOverrideCursor()
+            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
+            raise Exception from e1
+        except Exception as e2:
+            msg = "General exception. \n\n{0}".format(str(e2))
+            logging.error(str(e2), exc_info=True)
+            QtGui.QApplication.restoreOverrideCursor()
+            QtGui.QMessageBox.warning(QtGui.QWidget(), 'login error', msg)
+            raise Exception from e2
+        finally:
+            QtGui.QApplication.restoreOverrideCursor()
 
     def ucitaj_podatke(self):
         """ucitavanje koncentracija, zero i span podataka"""
         try:
-            out = self.show_dijalog_za_izbor_kanala_i_datuma(self.vrijemeOd, self.vrijemeDo)
-            if out:
-                # nije cancel exit
-                [self.kanal, self.vrijemeOd, self.vrijemeDo] = out
+            if self.program_mjerenja_dlg.exec_():
+                [self.kanal, self.vrijemeOd, self.vrijemeDo] = self.program_mjerenja_dlg.get_izbor()
             else:
                 return
             # spinning cursor...
             QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
             # dohvati frejmove
+            tpl = self.data_reader.get_data(self.kanal, self.vrijemeOd, self.vrijemeDo)
+            master_konc_frejm, master_zero_frejm, master_span_frejm = tpl
+            # spremi frejmove u dokument #TODO! samo 1 level...
+            self.dokument.koncModel.datafrejm = master_konc_frejm
+            self.dokument.zeroModel.datafrejm = master_zero_frejm
+            self.dokument.spanModel.datafrejm = master_span_frejm
+            # set clean modela za korekcije u dokument
+            self.dokument.korekcijaModel.datafrejm = pd.DataFrame(columns=['vrijeme', 'A', 'B', 'Sr', 'remove'])
+            # TODO! sredi opis i drugi update gui labela
+            od = str(master_konc_frejm.index[0])
+            do = str(master_konc_frejm.index[-1])
+            self.dokument.set_kanal_info_string(self.kanal, od, do)
 
+            self.update_opis_grafa(self.dokument.koncModel.opis)
+            self.update_konc_labels(('n/a', 'n/a', 'n/a'))
+            self.update_zero_labels(('n/a', 'n/a', 'n/a'))
+            self.update_span_labels(('n/a', 'n/a', 'n/a'))
+            # predavanje (konc, zero, span) modela kanvasu za crtanje (primarni trigger za clear & redraw)
+            self.set_data_models_to_canvas(self.dokument.koncModel,
+                                           self.dokument.zeroModel,
+                                           self.dokument.spanModel)
+
+        except (AssertionError, RequestException) as e1:
+            msg = "Problem kod dohvaćanja minutnih podataka.\n\n{0}".format(str(e1))
+            logging.error(str(e1), exc_info=True)
+            QtGui.QApplication.restoreOverrideCursor()
+            self.update_opis_grafa("n/a")
+            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
+        except Exception as e2:
+            msg = "General exception. \n\n{0}".format(str(e2))
+            logging.error(str(e2), exc_info=True)
+            QtGui.QApplication.restoreOverrideCursor()
+            self.update_opis_grafa("n/a")
+            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
+        finally:
+            QtGui.QApplication.restoreOverrideCursor()
+
+
+
+class TaskThread(QtCore.QThread):
+
+    notifyProgress = QtCore.pyqtSignal(int)
+
+    def run(self):
+        try:
             tpl = self.data_reader.get_data(self.kanal, self.vrijemeOd, self.vrijemeDo)
             master_konc_frejm, master_zero_frejm, master_span_frejm = tpl
             # spremi frejmove u dokument #TODO! samo 1 level...
@@ -292,42 +393,5 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
             QtGui.QApplication.restoreOverrideCursor()
             self.update_opis_grafa("n/a")
             QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
-        finally:
-            QtGui.QApplication.restoreOverrideCursor()
 
-    def log_in(self, x):
-        try:
-            self.restRequest.logmein(x)
-            self.init_program_mjerenja()
-            self.toggle_logged_in_state(True)
-        except Exception as err:
-            logging.error(str(err), exc_info=True)
-            logging.error('logging out')
-            # try again loop
-            odgovor = QtGui.QMessageBox.question(self,
-                                                 'Ponovi login',
-                                                 'Neuspješan login, želite li probati ponovo?',
-                                                 QtGui.QMessageBox.Ok | QtGui.QMessageBox.No)
-            if odgovor == QtGui.QMessageBox.Ok:
-                self.handle_login()
-            else:
-                QtGui.QApplication.quit()
-
-    def init_program_mjerenja(self):
-        try:
-            QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
-            self.dokument.mjerenja = self.restRequest.get_programe_mjerenja()
-        except (AssertionError, RequestException) as e1:
-            msg = "Problem kod dohvaćanja podataka o mjerenjima.\n\n{0}".format(str(e1))
-            logging.error(str(e1), exc_info=True)
-            QtGui.QApplication.restoreOverrideCursor()
-            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
-            raise Exception from e1
-        except Exception as e2:
-            msg = "General exception. \n\n{0}".format(str(e2))
-            logging.error(str(e2), exc_info=True)
-            QtGui.QApplication.restoreOverrideCursor()
-            QtGui.QMessageBox.warning(QtGui.QWidget(), 'login error', msg)
-            raise Exception from e2
-        finally:
-            QtGui.QApplication.restoreOverrideCursor()
+            self.notifyProgress.emit(i)

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from PyQt4 import QtGui, QtCore, uic
+from PyQt4 import QtGui, uic
 
 BASE_KANAL_DIJALOG, FORM_KANAL_DIJALOG = uic.loadUiType('./app/view/ui_files/kanal_dijalog.ui')
 
@@ -7,26 +7,27 @@ BASE_KANAL_DIJALOG, FORM_KANAL_DIJALOG = uic.loadUiType('./app/view/ui_files/kan
 class KanalDijalog(BASE_KANAL_DIJALOG, FORM_KANAL_DIJALOG):
     """izbor kanala i vremenskog raspona"""
 
-    def __init__(self, drvo, od=None, do=None, parent=None):
+    def __init__(self, parent=None):
         super(BASE_KANAL_DIJALOG, self).__init__(parent)
+        self.setModal(True)
         self.setupUi(self)
-
-        self.drvo = drvo
         self.izabraniKanal = None
+        self.drvo = None
 
-        self.treeView.setModel(self.drvo)
-        self.treeView.clicked.connect(self.resolve_tree_click)
 
-        if od:
-            datum = QtCore.QDate(od.year, od.month, od.day)
-            self.kalendarOd.setSelectedDate(datum)
-        if do:
-            datum = QtCore.QDate(do.year, do.month, do.day)
-            self.kalendarDo.setSelectedDate(datum)
+    def set_program(self, drvo):
+        self.drvo = drvo
+        self.treeView.setModel(drvo)
 
     def accept(self):
         od = self.kalendarOd.selectedDate().toPyDate()
         do = self.kalendarDo.selectedDate().toPyDate()
+        indexes = self.treeView.selectedIndexes()
+        if len(indexes) > 0:
+            index = indexes[0]
+            item = self.drvo.getItem(index)
+            self.izabraniKanal = item._data[2]
+
         timeRaspon = (do - od).days
         if timeRaspon < 1:
             QtGui.QMessageBox.warning(self, 'Problem', 'Vremenski raspon nije dobro zadan')
@@ -36,10 +37,6 @@ class KanalDijalog(BASE_KANAL_DIJALOG, FORM_KANAL_DIJALOG):
             return
         else:
             self.done(self.Accepted)
-
-    def resolve_tree_click(self, x):
-        item = self.drvo.getItem(x)  # dohvati specificni objekt pod tim indeksom
-        self.izabraniKanal = item._data[2]  # TODO! losa implementacija
 
     def get_izbor(self):
         od = self.kalendarOd.selectedDate().toPyDate()  # .strftime('%Y-%m-%d')

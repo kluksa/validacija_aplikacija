@@ -46,7 +46,7 @@ class ZeroSpanAdapter(Adapter):
         #       try:
         frejm = pd.read_json(ulaz, orient='records', convert_dates=['vrijeme'])
         if frejm.empty:
-            return frejm
+            return pd.DataFrame(), pd.DataFrame()
         self._provjeri(frejm, self.obavezni_json_stupci)
         zero_frejm = self._napravi_frame(frejm[frejm['vrsta'] == 'Z'])
         zero_frejm.rename(columns={'vrijednost': 'zero'}, inplace=True)
@@ -77,7 +77,7 @@ class PodatakAdapter(Adapter):
         #        try:
         df = pd.read_json(ulaz, orient='records', convert_dates=['vrijeme'])
         if df.empty:
-            return df
+            return pd.DataFrame()
         self._provjeri(df, self.obavezni_json_stupci)
         df = df.set_index(df['vrijeme'])
         df.drop(['vrijeme', 'nivoValidacije'], inplace=True, axis=1)

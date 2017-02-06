@@ -57,11 +57,11 @@ class DataReaderAndCombiner(object):
                 konc_frejm = self.citac.get_sirovi(kanal, dan)
                 zero_frejm, span_frejm = self.citac.get_zero_span(kanal, dan, 1)
                 # append dnevne frejmove na glavni ako imaju podatke
-                if len(konc_frejm):
+                if not konc_frejm.empty:
                     master_konc_frm = master_konc_frm.append(konc_frejm)
-                if len(zero_frejm):
+                if not zero_frejm.empty:
                     master_zero_frm = master_zero_frm.append(zero_frejm)
-                if len(span_frejm):
+                if not span_frejm.empty:
                     master_span_frm = master_span_frm.append(span_frejm)
                 # advance progress bar
                 self.progress.setValue(d)

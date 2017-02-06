@@ -9,7 +9,16 @@ import xml.etree.ElementTree as ET
 
 
 
+
 class Dokument(object):
+    """Sto instanca ove klase treba raditi ???
+    1. čuva dataframeove sa podacima, zero, span
+    2. čuva dataframe sa koeficijentima
+    3. primijeni korekciju na podatke
+
+    - Stablo sa programom je model vezan uz kanal_dijalog, dakle nije mu mjesto u dokumentu
+    - od, do, aktivni program mogu biti ovdje, a mogu biti i kanal_dijalog-u
+    """
     def __init__(self):
         # nested dict mjerenja
         self._mjerenja = {}

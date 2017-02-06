@@ -4,16 +4,48 @@ import configparser
 import matplotlib.colors as colors
 
 
+class Konfig():
+    cfg = None
+    LOG_LEVELS = {'DEBUG': logging.DEBUG,
+                  'INFO': logging.INFO,
+                  'WARNING': logging.WARNING,
+                  'ERROR': logging.ERROR,
+                  'CRITICAL': logging.CRITICAL}
+
+    def read_config(datoteke):
+        Konfig.cfg = configparser.ConfigParser()
+        for d in datoteke:
+            Konfig.cfg.read(d)
+
+    @classmethod
+    def rest(cls):
+        return Konfig.cfg['REST']
+
+    @classmethod
+    def log(cls, kljuc):
+        if kljuc == 'lvl':
+            return Konfig.LOG_LEVELS[Konfig.cfg['LOG_SETUP']['lvl']]
+        elif kljuc == 'mode':
+            return Konfig.cfg['LOG_SETUP'][kljuc]
+        else:
+            return Konfig.cfg['LOG_SETUP'][kljuc]
+
+    @classmethod
+    def icons(cls):
+        return Konfig.cfg['ICONS']
+
+
 class MainKonfig(object):
     def __init__(self, cfgFile, parent=None):
         self.cfg = configparser.ConfigParser(
-            defaults={ 'REST' :
-                           { 'program_mjerenja' : 'http://172.20.0.178:8080/SKZ-war/webresources/dhz.skz.rs.programmjerenja/zakljucani',
-                             'sirovi_podaci' : 'http://172.20.0.178:8080/SKZ-war/webresources/dhz.skz.rs.sirovipodaci',
-                             'status_map' : 'http://172.20.0.178:8080/SKZ-war/webresources/dhz.skz.rs.sirovipodaci/statusi',
-                             'zero_span_podaci' : 'http://172.20.0.178:8080/SKZ-war/webresources/dhz.skz.rs.zerospan'
-                            }
-                       }
+            defaults={'REST':
+                          {
+                              'program_mjerenja': 'http://172.20.0.178:8080/SKZ-war/webresources/dhz.skz.rs.programmjerenja/zakljucani',
+                              'sirovi_podaci': 'http://172.20.0.178:8080/SKZ-war/webresources/dhz.skz.rs.sirovipodaci',
+                              'status_map': 'http://172.20.0.178:8080/SKZ-war/webresources/dhz.skz.rs.sirovipodaci/statusi',
+                              'zero_span_podaci': 'http://172.20.0.178:8080/SKZ-war/webresources/dhz.skz.rs.zerospan'
+                              }
+                      }
         )
         self.LOG_LEVELS = {'DEBUG': logging.DEBUG,
                            'INFO': logging.INFO,
