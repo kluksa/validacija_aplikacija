@@ -15,7 +15,7 @@ from app.view import kanal_dijalog
 
 class Kontroler(QtGui.QWidget):
     def __init__(self, parent=None):
-        QtGui.QWidget.__init__(self, parent=None)
+        super(Kontroler, self).__init__(parent=None)
 
         self.kanal = None
         self.vrijemeOd = None
@@ -61,7 +61,7 @@ class Kontroler(QtGui.QWidget):
         # load in novih podataka sa REST-a
         self.connect(self.gui,
                      QtCore.SIGNAL('ucitaj_minutne'),
-                     self.ucitaj_podatke_za_kanal_i_datum)
+                     self.ucitavanje_podataka_sa_resta)
         # navigacija graf-tablica sa podacima
         self.connect(self.gui.kanvas,
                      QtCore.SIGNAL('table_select_podatak(PyQt_PyObject)'),
@@ -74,6 +74,14 @@ class Kontroler(QtGui.QWidget):
         self.connect(self.gui,
                      QtCore.SIGNAL('export_korekcije'),
                      self.export_korekcije)
+        #serijalizacija dokumenta
+        self.connect(self.gui,
+                     QtCore.SIGNAL('serijaliziraj_dokument'),
+                     self.spremanje_podataka_u_file)
+        #unserijalizacija dokumenta
+        self.connect(self.gui,
+                     QtCore.SIGNAL('unserijaliziraj_dokument'),
+                     self.ucitavanje_podataka_iz_filea)
 
     def kickstart_gui(self):
         # set modele u odgovarajuce tablice
@@ -92,7 +100,10 @@ class Kontroler(QtGui.QWidget):
             QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
             self.dokument.primjeni_korekciju()
             #naredi ponovno crtanje
+            #TODO! dohvati prijasnji zoom i restore zoom poslje
+            xraspon = self.gui.get_current_x_zoom_range()
             self.gui.draw_graf()
+            self.gui.set_current_x_zoom_range(xraspon)
         except Exception as err:
             msg = "General exception. \n\n{0}".format(str(err))
             logging.error(str(err), exc_info=True)
@@ -186,8 +197,8 @@ class Kontroler(QtGui.QWidget):
             kanal, vrijemeOd, vrijemeDo = dijalog.get_izbor()
             return kanal, vrijemeOd, vrijemeDo
 
-    def ucitaj_podatke_za_kanal_i_datum(self):
-        """ucitavanje koncentracija, zero i span podataka"""
+    def ucitavanje_podataka_sa_resta(self):
+        """ucitavanje koncentracija, zero i span podataka sa REST servisa"""
         try:
             out = self.show_dijalog_za_izbor_kanala_i_datuma(self.vrijemeOd, self.vrijemeDo)
             if out:
@@ -199,17 +210,18 @@ class Kontroler(QtGui.QWidget):
             QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
             #dohvati frejmove
             tpl = self.restReader.get_data(self.kanal, self.vrijemeOd, self.vrijemeDo)
+            #spremanje podataka o kanalu
             masterKoncFrejm, masterZeroFrejm, masterSpanFrejm = tpl
             #spremi frejmove u dokument #TODO! samo 1 level...
             self.dokument.koncModel.datafrejm = masterKoncFrejm
             self.dokument.zeroModel.datafrejm = masterZeroFrejm
             self.dokument.spanModel.datafrejm = masterSpanFrejm
             #set clean modela za korekcije u dokument
-            self.dokument.korekcijaModel.datafrejm = pd.DataFrame(columns=['vrijeme', 'A', 'B', 'Sr', 'remove'])
-            #TODO! sredi opis i drugi update gui labela
+            self.dokument.korekcijaModel.datafrejm = pd.DataFrame(columns=['vrijeme', 'A', 'B', 'Sr', 'remove', 'calc'])
+            # sredi opis i drugi update gui labela
             od = str(masterKoncFrejm.index[0])
             do = str(masterKoncFrejm.index[-1])
-            self.dokument.set_kanal_info_string(self.kanal, od, do)
+            self.dokument.set_kanal_info(self.kanal, od, do)
             self.gui.update_opis_grafa(self.dokument.koncModel.opis)
             self.gui.update_konc_labels(('n/a','n/a','n/a'))
             self.gui.update_zero_labels(('n/a','n/a','n/a'))
@@ -232,3 +244,107 @@ class Kontroler(QtGui.QWidget):
             QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
         finally:
             QtGui.QApplication.restoreOverrideCursor()
+
+    def spremanje_podataka_u_file(self):
+        """spremanje podataka u file"""
+        try:
+            #get file sa save
+            fajlNejm = QtGui.QFileDialog.getSaveFileName(self.gui,
+                                                         "Ucitaj podatke")
+            #spinning cursor...
+            QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+
+            bstr = self.dokument.get_pickleBinary()
+            with open(fajlNejm, 'wb') as fn:
+                fn.write(bstr)
+
+        except Exception as err:
+            msg = "General exception. \n\n{0}".format(str(err))
+            logging.error(str(msg), exc_info=True)
+            QtGui.QApplication.restoreOverrideCursor()
+            self.gui.update_opis_grafa("n/a")
+            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
+        finally:
+            QtGui.QApplication.restoreOverrideCursor()
+
+    def ucitavanje_podataka_iz_filea(self):
+        """ucitavanje podataka iz prethodno spremljenog filea"""
+        try:
+            #get file za load
+            fajlNejm = QtGui.QFileDialog.getOpenFileName(self.gui,
+                                                         "Ucitaj podatke")
+            #spinning cursor...
+            QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+
+            with open(fajlNejm, 'rb') as fn:
+                bstr = fn.read()
+                self.dokument.set_pickleBinary(bstr)
+
+            self.gui.update_opis_grafa(self.dokument.koncModel.opis)
+            self.gui.update_konc_labels(('n/a','n/a','n/a'))
+            self.gui.update_zero_labels(('n/a','n/a','n/a'))
+            self.gui.update_span_labels(('n/a','n/a','n/a'))
+
+            #TODO! korekcija model ne valja...hvata zadnji red? nedostaju update persistentnih gumbi
+            #predavanje (konc, zero, span) modela kanvasu za crtanje (primarni trigger za clear & redraw)
+            self.gui.set_data_models_to_canvas(self.dokument.koncModel,
+                                               self.dokument.zeroModel,
+                                               self.dokument.spanModel)
+            self.gui.sredi_delegate_za_tablicu()
+        except Exception as err:
+            msg = "General exception. \n\n{0}".format(str(err))
+            logging.error(str(msg), exc_info=True)
+            QtGui.QApplication.restoreOverrideCursor()
+            self.gui.update_opis_grafa("n/a")
+            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
+        finally:
+            QtGui.QApplication.restoreOverrideCursor()
+
+
+#    def ucitaj_podatke_za_kanal_i_datum(self):
+#        """ucitavanje koncentracija, zero i span podataka"""
+#        try:
+#            out = self.show_dijalog_za_izbor_kanala_i_datuma(self.vrijemeOd, self.vrijemeDo)
+#            if out:
+#                #nije cancel exit
+#                self.kanal, self.vrijemeOd, self.vrijemeDo = out
+#            else:
+#                return
+#            #spinning cursor...
+#            QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+#            #dohvati frejmove
+#            tpl = self.restReader.get_data(self.kanal, self.vrijemeOd, self.vrijemeDo)
+#            #spremanje podataka o kanalu
+#            masterKoncFrejm, masterZeroFrejm, masterSpanFrejm = tpl
+#            #spremi frejmove u dokument #TODO! samo 1 level...
+#            self.dokument.koncModel.datafrejm = masterKoncFrejm
+#            self.dokument.zeroModel.datafrejm = masterZeroFrejm
+#            self.dokument.spanModel.datafrejm = masterSpanFrejm
+#            #set clean modela za korekcije u dokument
+#            self.dokument.korekcijaModel.datafrejm = pd.DataFrame(columns=['vrijeme', 'A', 'B', 'Sr', 'remove'])
+#            #TODO! sredi opis i drugi update gui labela
+#            od = str(masterKoncFrejm.index[0])
+#            do = str(masterKoncFrejm.index[-1])
+#            self.dokument.set_kanal_info(self.kanal, od, do)
+#            self.gui.update_opis_grafa(self.dokument.koncModel.opis)
+#            self.gui.update_konc_labels(('n/a','n/a','n/a'))
+#            self.gui.update_zero_labels(('n/a','n/a','n/a'))
+#            self.gui.update_span_labels(('n/a','n/a','n/a'))
+#            #predavanje (konc, zero, span) modela kanvasu za crtanje (primarni trigger za clear & redraw)
+#            self.gui.set_data_models_to_canvas(self.dokument.koncModel,
+#                                               self.dokument.zeroModel,
+#                                               self.dokument.spanModel)
+#        except (AssertionError, RequestException) as e1:
+#            msg = "Problem kod dohvaćanja minutnih podataka.\n\n{0}".format(str(e1))
+#            logging.error(str(e1), exc_info=True)
+#            QtGui.QApplication.restoreOverrideCursor()
+#            self.gui.update_opis_grafa("n/a")
+#            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
+#        except Exception as e2:
+#            msg = "General exception. \n\n{0}".format(str(e2))
+#            logging.error(str(e2), exc_info=True)
+#            QtGui.QApplication.restoreOverrideCursor()
+#            self.gui.update_opis_grafa("n/a")
+#            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
+#        finally:
+#            QtGui.QApplication.restoreOverrideCursor()

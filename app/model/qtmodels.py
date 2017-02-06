@@ -309,14 +309,14 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
         self._dataFrejm.loc[od:do, 'flag'] = fl
         self.layoutChanged.emit()
 
-    def update_korekciju_i_ldl(self, kor, ldl, a, b, sr):
-        # TODO!
-        self._dataFrejm['korekcija'] = kor
-        self._dataFrejm['LDL'] = ldl
-        self._dataFrejm['A'] = a
-        self._dataFrejm['B'] = b
-        self._dataFrejm['Sr'] = sr
-        self.layoutChanged.emit()
+#    def update_korekciju_i_ldl(self, kor, ldl, a, b, sr):
+#        # TODO!
+#        self._dataFrejm['korekcija'] = kor
+#        self._dataFrejm['LDL'] = ldl
+#        self._dataFrejm['A'] = a
+#        self._dataFrejm['B'] = b
+#        self._dataFrejm['Sr'] = sr
+#        self.layoutChanged.emit()
 
     # QT functionality
     def rowCount(self, parent=QtCore.QModelIndex()):
@@ -475,14 +475,14 @@ class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
         else:
             return np.NaN, np.NaN
 
-    def update_korekciju_i_ldl(self, kor, ldl, a, b, sr):
-        # TODO!
-        self._dataFrejm['korekcija'] = kor
-        self._dataFrejm['LDL'] = ldl
-        self._dataFrejm['A'] = a
-        self._dataFrejm['B'] = b
-        self._dataFrejm['Sr'] = sr
-        self.layoutChanged.emit()
+#    def update_korekciju_i_ldl(self, kor, ldl, a, b, sr):
+#        # TODO!
+#        self._dataFrejm['korekcija'] = kor
+#        self._dataFrejm['LDL'] = ldl
+#        self._dataFrejm['A'] = a
+#        self._dataFrejm['B'] = b
+#        self._dataFrejm['Sr'] = sr
+#        self.layoutChanged.emit()
 
     # QT functionality
     def rowCount(self, parent=QtCore.QModelIndex()):
@@ -519,7 +519,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
     def __init__(self, frejm=None, parent=None):
         QtCore.QAbstractTableModel.__init__(self, parent)
         self._dummydata = {'vrijeme': '', 'A': np.NaN, 'B': np.NaN, 'Sr': np.NaN, 'remove': ''}
-        self._expectedCols = ['vrijeme', 'A', 'B', 'Sr', 'remove']
+        self._expectedCols = ['vrijeme', 'A', 'B', 'Sr', 'remove', 'calc']
         self._dataFrejm = pd.DataFrame(columns=self._expectedCols)
         if frejm is None:
             frejm = pd.DataFrame(columns=self._expectedCols)
@@ -544,6 +544,15 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         else:
             raise TypeError('Not a pandas DataFrame object'.format(type(x)))
 
+    def set_AB_for_row(self, red, a, b):
+        #TODO! fix ab indexing
+        self._dataFrejm.iloc[red, 1] = a
+        self._dataFrejm.iloc[red, 2] = b
+
+        self.layoutChanged.emit()
+        self.emit(QtCore.SIGNAL('update_persistent_delegate'))
+
+
     def calc_ldl_values(self, frejm):
         """dohvati ldl vrijednosti..."""
         sr = frejm['Sr']
@@ -563,7 +572,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         df.sort_values(['vrijeme'], inplace=True)
         df = df.set_index(df['vrijeme'])
         #drop stupce koji su pomocni
-        df.drop(['remove', 'vrijeme'], axis=1, inplace=True)
+        df.drop(['remove', 'calc', 'vrijeme'], axis=1, inplace=True)
         df['A'] = df['A'].astype(float)
         df['B'] = df['B'].astype(float)
         df['Sr'] = df['Sr'].astype(float)
@@ -607,7 +616,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         return len(self._dataFrejm)
 
     def columnCount(self, parent=QtCore.QModelIndex()):
-        return 5
+        return 6
 
     def flags(self, index):
         if index.isValid():
@@ -734,3 +743,31 @@ class GumbDelegate(QtGui.QItemDelegate):
         indeks = view.indexAt(self.sender().pos())
         model.removeRows(indeks.row())
         self.commitData.emit(self.sender())
+
+
+class CalcGumbDelegate(QtGui.QItemDelegate):
+    def __init__(self, parent):
+        QtGui.QItemDelegate.__init__(self, parent)
+
+    def createEditor(self, parent, option, index):
+        gumb = QtGui.QPushButton('AB', parent=parent)
+        gumb.clicked.connect(self.calculate_AB_for_row)
+        return gumb
+
+    def setEditorData(self, editor, index):
+        pass
+
+    def setModelData(self, editor, model, index):
+        pass
+        # model.setData(index, editor.text())
+
+    def calculate_AB_for_row(self, x):
+        # glupo do bola, ali radi za sada
+        view = self.sender().parent().parent() #tableview
+        model = view.model() #model unutar table view-a
+        indeks = view.indexAt(self.sender().pos())
+        gui = view.parent().parent() #gui insatnca
+        ab = gui.get_AB_values() #TODO! not implemented
+        if ab:
+            model.set_AB_for_row(indeks.row(), ab[0], ab[1])
+            self.commitData.emit(self.sender())

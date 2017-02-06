@@ -785,8 +785,9 @@ class Kanvas(FigureCanvas):
 
         ok = frejmKonc[frejmKonc['flag']>0]
         bad = frejmKonc[frejmKonc['flag']<0]
-        korekcijaOk = frejmKonc[frejmKonc['korekcija']>=frejmKonc['LDL']]
-        korekcijaBad = frejmKonc[frejmKonc['korekcija']<frejmKonc['LDL']]
+        #losa korekcija za los flag takodjer
+        korekcijaOk = frejmKonc[(frejmKonc['korekcija']>=frejmKonc['LDL'])&(frejmKonc['flag']>=0)]
+        korekcijaBad = frejmKonc[(frejmKonc['korekcija']<frejmKonc['LDL'])|(frejmKonc['flag']<0)]
         #count korektiranih manjih od 0 i manjih od ldl
         korektirani_manji_od_nule = frejmKonc[frejmKonc['korekcija'] < 0].count()['korekcija']
         korektirani_manji_od_LDL = korekcijaBad.count()['korekcija']
@@ -920,6 +921,14 @@ class Kanvas(FigureCanvas):
         for xmin, xmax in badRasponiSpan:
             self.axesS.axvspan(xmin, xmax, facecolor='red', alpha=0.2)
             self.axesC.axvspan(xmin, xmax, facecolor='red', alpha=0.2)
+
+    def get_current_x_zoom(self):
+        return self.axesC.get_xlim()
+
+    def set_current_x_zoom(self, x):
+        self.axesC.set_xlim(x)
+        self.autoscale_y_os()
+        self.draw()
 
 
     def crtaj(self, rend=True):
@@ -1267,6 +1276,14 @@ class GrafDisplayWidget(QtGui.QWidget):
 
     def emit_korekcija_selected(self, xpoint):
         self.emit(QtCore.SIGNAL('korekcija_table_select_podatak(PyQt_PyObject)'), xpoint)
+
+    def get_xzoom_range(self):
+        #TODO!
+        return self.figure_canvas.get_current_x_zoom()
+
+    def set_xzoom_range(self, x):
+        #TODO!
+        self.figure_canvas.set_current_x_zoom(x)
 
     def crtaj(self, rend=True):
         self.figure_canvas.crtaj(rend=rend)

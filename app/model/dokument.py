@@ -11,6 +11,11 @@ class Dokument(object):
         drvo = qtmodels.TreeItem(['stanice', None, None, None], parent=None)
         self._treeModelProgramaMjerenja = qtmodels.ModelDrva(drvo)
 
+        #podaci o ucitanom kanalu
+        self._aktivniKanal = None
+        self._vrijemeOd = None
+        self._vrijemeDo = None
+
         #modeli za prikaz podataka
         self._koncModel = qtmodels.KoncFrameModel()
         self._zeroModel = qtmodels.ZeroSpanFrameModel('zero')
@@ -55,28 +60,52 @@ class Dokument(object):
         """Qt table model sa tockama za korekciju"""
         return self._korekcijaModel
 
-    def get_pickleBinary(self, fname, kanal, od, do):
-        mapa = {'kanal':kanal,
-                'od':od,
-                'do':do,
+    @property
+    def aktivniKanal(self):
+        return self._aktivniKanal
+
+    @aktivniKanal.setter
+    def aktivniKanal(self, x):
+        self._aktivniKanal = x
+
+    @property
+    def vrijemeOd(self):
+        return self._vrijemeOd
+
+    @vrijemeOd.setter
+    def vrijemeOd(self, x):
+        self._vrijemeOd = x
+
+    @property
+    def vrijemeDo(self):
+        return self._vrijemeDo
+
+    @vrijemeDo.setter
+    def vrijemeDo(self, x):
+        self._vrijemeDo = x
+
+    def get_pickleBinary(self):
+        #TODO!
+        #strip korekcija model zadnji red...
+        df = self.korekcijaModel.datafrejm
+        df = df.iloc[:-1, :]
+        mapa = {'kanal':self.aktivniKanal,
+                'od':self.vrijemeOd,
+                'do':self.vrijemeDo,
                 'koncFrejm':self.koncModel.datafrejm,
                 'zeroFrejm':self.zeroModel.datafrejm,
                 'spanFrejm':self.spanModel.datafrejm,
-                'korekcijaFrejm':self.korekcijaModel.datafrejm}
+                'korekcijaFrejm':df}
         return pickle.dumps(mapa)
 
     def set_pickleBinary(self, binstr):
+        #TODO!
         mapa = pickle.loads(binstr)
         self.koncModel.datafrejm = mapa['koncFrejm']
         self.zeroModel.datafrejm = mapa['zeroFrejm']
         self.spanModel.datafrejm = mapa['spanFrejm']
         self.korekcijaModel.datafrejm = mapa['korekcijaFrejm']
-        od = mapa['od']
-        do = mapa['do']
-        kanal = mapa['kanal']
-        #TODO! emit request za redraw
-
-
+        self.set_kanal_info(mapa['kanal'], mapa['od'], mapa['do'])
 
     def primjeni_korekciju(self):
         """pokupi frejmove, primjeni korekciju i spremi promjenu"""
@@ -84,11 +113,14 @@ class Dokument(object):
         self.zeroModel.datafrejm = self.korekcijaModel.primjeni_korekciju_na_frejm(self.zeroModel.datafrejm)
         self.spanModel.datafrejm = self.korekcijaModel.primjeni_korekciju_na_frejm(self.spanModel.datafrejm)
 
-    def set_kanal_info_string(self, kanal, od, do):
+    def set_kanal_info(self, kanal, od, do):
         """setter metapodataka o kanalu u model koncentracije"""
+        self.aktivniKanal = kanal
+        self.vrijemeOd = od
+        self.vrijemeDo = do
+
         kid = str(kanal)
         postaja = self._mjerenja[kanal]['postajaNaziv']
-        #naziv = mapa[kanal]['komponentaNaziv']
         formula = self._mjerenja[kanal]['komponentaFormula']
         mjernaJedinica = self._mjerenja[kanal]['komponentaMjernaJedinica']
         out = "{0}: {1} | {2} ({3}) | OD: {4} | DO: {5}".format(
@@ -101,7 +133,6 @@ class Dokument(object):
         #set podatke u konc model
         self.koncModel.opis = out
         self.koncModel.kanalMeta = self.mjerenja[kanal]
-
 
     def _konstruiraj_tree_model(self):
         #sredjivanje povezanih kanala (NOx grupa i PM grupa)

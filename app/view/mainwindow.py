@@ -4,9 +4,12 @@ from PyQt4 import QtGui, QtCore, uic
 from app.view import auth_login
 from app.view.canvas import GrafDisplayWidget
 from app.view import korekcija_dijalog
-from app.model.qtmodels import GumbDelegate
+from app.view.abcalc import ABKalkulator
+from app.model.qtmodels import GumbDelegate, CalcGumbDelegate
 
 MAIN_BASE, MAIN_FORM = uic.loadUiType('./app/view/ui_files/mainwindow.ui')
+
+
 class MainWindow(MAIN_BASE, MAIN_FORM):
     def __init__(self, konfig, graf_opcije, parent=None):
         super(MAIN_BASE, self).__init__(parent)
@@ -17,31 +20,45 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.kanvas = GrafDisplayWidget(self.cfg.spanSelectIcon, self.cfg.xZoomIcon, self.cfgGraf)
         self.grafLayout.addWidget(self.kanvas)
 
-        #custom persistent delegates...
-        #TODO! triple click fail... treba srediti persistent editor na cijeli stupac
-        #self.korekcijaDisplay.setItemDelegateForColumn(4, GumbDelegate(self))
-
         self.setup_connections()
 
     def sredi_delegate_za_tablicu(self):
         model = self.korekcijaDisplay.model()
         self.korekcijaDisplay.setItemDelegateForColumn(4, GumbDelegate(self))
+        self.korekcijaDisplay.setItemDelegateForColumn(5, CalcGumbDelegate(self))
         for red in range(0, model.rowCount()):
             self.korekcijaDisplay.closePersistentEditor(model.index(red, 4))
+            self.korekcijaDisplay.closePersistentEditor(model.index(red, 5))
             self.korekcijaDisplay.openPersistentEditor(model.index(red, 4))
+            self.korekcijaDisplay.openPersistentEditor(model.index(red, 5))
+
+    def get_current_x_zoom_range(self):
+        return self.kanvas.get_xzoom_range()
+
+    def set_current_x_zoom_range(self, x):
+        self.kanvas.set_xzoom_range(x)
+
+    def get_AB_values(self):
+        self.dijalogAB = ABKalkulator()
+        response = self.dijalogAB.exec_()
+        if response:
+            return self.dijalogAB.AB
+        else:
+            return None
 
     def setup_connections(self):
         self.action_quit.triggered.connect(self.close)
-        #gumbi za add/remove/edit parametre korekcije i primjenu korekcije
+        # gumbi za add/remove/edit parametre korekcije i primjenu korekcije
         self.buttonUcitaj.clicked.connect(self.handle_ucitaj)
         self.buttonExport.clicked.connect(self.handle_export)
         self.buttonPrimjeniKorekciju.clicked.connect(self.handle_primjeni_korekciju)
+        self.buttonSerialize.clicked.connect(self.handle_spremi_dokument)
+        self.buttonUnserialize.clicked.connect(self.hangle_load_dokument)
 
         self.connect(self.kanvas,
                      QtCore.SIGNAL('graf_is_modified(PyQt_PyObject)'),
                      self.update_labele_obuhvata)
-
-        #TODO! lose ali brzi fix
+        # TODO! lose ali brzi fix
         self.connect(self.kanvas.figure_canvas,
                      QtCore.SIGNAL('update_konc_label(PyQt_PyObject)'),
                      self.update_konc_labels)
@@ -79,10 +96,10 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         ocekivano = mapa['ocekivano']
         mjerenja = mapa['broj_mjerenja']
         korekcija = mapa['broj_korektiranih']
-        ispodNula =  mapa['ispod_nula'] #TODO!
+        ispodNula = mapa['ispod_nula']
         ispodLDL = mapa['ispod_LDL']
         obuhvat = round((100 * korekcija / ocekivano), 2)
-        #update gui elements
+        # update gui elements
         self.ocekivanoLabel.setText(str(ocekivano))
         self.mjerenjaLabel.setText(str(mjerenja))
         self.korekcijaLabel.setText(str(korekcija))
@@ -117,6 +134,12 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
     def handle_primjeni_korekciju(self):
         self.emit(QtCore.SIGNAL('primjeni_korekciju'))
 
+    def handle_spremi_dokument(self):
+        self.emit(QtCore.SIGNAL('serijaliziraj_dokument'))
+
+    def hangle_load_dokument(self):
+        self.emit(QtCore.SIGNAL('unserijaliziraj_dokument'))
+
     def draw_graf(self):
         self.kanvas.crtaj()
 
@@ -130,44 +153,44 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         try:
             self.dataDisplay.selectRow(red)
         except (TypeError, LookupError):
-            #silent pass, error happens when None or out of bounds point is selected
+            # silent pass, error happens when None or out of bounds point is selected
             pass
 
-#    def zoom_to_relevant_korekcija(self, x):
-#        """x je pandas timestamp"""
-#        model = self.korekcijaDisplay.model()
-#        indeks = model.get_relevantni_red(x)
-#        if indeks != None:
-#            self.korekcijaDisplay.selectRow(indeks)
-#
-#    def dodaj_parametar_korekcije(self):
-#        #defaulti
-#        mapa = {'time':datetime.datetime.now(), 'A':1.0, 'B':0.0, 'Sr':3.33}
-#        dijalog = korekcija_dijalog.KorekcijaDijalog(mapa)
-#        if dijalog.exec_():
-#            parametri = dijalog.get_izbor()
-#            model = self.korekcijaDisplay.model()
-#            model.add_row(parametri)
-#
-#    def makni_selektirani_parametar_korekcije(self):
-#        red = self.korekcijaDisplay.selectionModel().selectedRows()
-#
-#        if len(red):
-#            x = red[0].row()
-#            model = self.korekcijaDisplay.model()
-#            model.remove_row(x)
-#
-#    def edit_selektirani_parametar_korekcije(self):
-#        red = self.korekcijaDisplay.selectionModel().selectedRows()
-#        if len(red):
-#            x = red[0].row()
-#            model = self.korekcijaDisplay.model()
-#            mapa = model.get_row_dict(x)
-#            dijalog = korekcija_dijalog.KorekcijaDijalog(mapa)
-#            if dijalog.exec_():
-#                parametri = dijalog.get_izbor()
-#                parametri['red'] = x
-#                model.edit_row(parametri)
+        #    def zoom_to_relevant_korekcija(self, x):
+        #        """x je pandas timestamp"""
+        #        model = self.korekcijaDisplay.model()
+        #        indeks = model.get_relevantni_red(x)
+        #        if indeks != None:
+        #            self.korekcijaDisplay.selectRow(indeks)
+        #
+        #    def dodaj_parametar_korekcije(self):
+        #        #defaulti
+        #        mapa = {'time':datetime.datetime.now(), 'A':1.0, 'B':0.0, 'Sr':3.33}
+        #        dijalog = korekcija_dijalog.KorekcijaDijalog(mapa)
+        #        if dijalog.exec_():
+        #            parametri = dijalog.get_izbor()
+        #            model = self.korekcijaDisplay.model()
+        #            model.add_row(parametri)
+        #
+        #    def makni_selektirani_parametar_korekcije(self):
+        #        red = self.korekcijaDisplay.selectionModel().selectedRows()
+        #
+        #        if len(red):
+        #            x = red[0].row()
+        #            model = self.korekcijaDisplay.model()
+        #            model.remove_row(x)
+        #
+        #    def edit_selektirani_parametar_korekcije(self):
+        #        red = self.korekcijaDisplay.selectionModel().selectedRows()
+        #        if len(red):
+        #            x = red[0].row()
+        #            model = self.korekcijaDisplay.model()
+        #            mapa = model.get_row_dict(x)
+        #            dijalog = korekcija_dijalog.KorekcijaDijalog(mapa)
+        #            if dijalog.exec_():
+        #                parametri = dijalog.get_izbor()
+        #                parametri['red'] = x
+        #                model.edit_row(parametri)
 
     def closeEvent(self, event):
         """
@@ -180,7 +203,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
             QtGui.QMessageBox.Yes,
             QtGui.QMessageBox.No)
         if reply == QtGui.QMessageBox.Yes:
-            #overwite graf konfig file...
+            # overwite graf konfig file...
             self.cfgGraf.save_to_file()
             event.accept()
             self.emit(QtCore.SIGNAL('gui_terminated'))
