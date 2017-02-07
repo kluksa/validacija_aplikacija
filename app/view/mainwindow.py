@@ -53,7 +53,8 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.buttonExport.clicked.connect(self.handle_export)
         self.buttonPrimjeniKorekciju.clicked.connect(self.handle_primjeni_korekciju)
         self.buttonSerialize.clicked.connect(self.handle_spremi_dokument)
-        self.buttonUnserialize.clicked.connect(self.hangle_load_dokument)
+        self.buttonUnserialize.clicked.connect(self.handle_load_dokument)
+        self.buttonExportAgregirane.clicked.connect(self.handle_export_agregiranih)
 
         self.connect(self.kanvas,
                      QtCore.SIGNAL('graf_is_modified(PyQt_PyObject)'),
@@ -131,13 +132,16 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
     def handle_export(self):
         self.emit(QtCore.SIGNAL('export_korekcije'))
 
+    def handle_export_agregiranih(self):
+        self.emit(QtCore.SIGNAL('export_satno_agregiranih'))
+
     def handle_primjeni_korekciju(self):
         self.emit(QtCore.SIGNAL('primjeni_korekciju'))
 
     def handle_spremi_dokument(self):
         self.emit(QtCore.SIGNAL('serijaliziraj_dokument'))
 
-    def hangle_load_dokument(self):
+    def handle_load_dokument(self):
         self.emit(QtCore.SIGNAL('unserijaliziraj_dokument'))
 
     def draw_graf(self):

@@ -15,13 +15,9 @@ class DataReaderAndCombiner(object):
     frejmove u jedan izlazni.
 
     reader : RestZahtjev objekt
-    statusi : mapa {statusBit : status}
     """
     def __init__(self, reader):
         self.citac = reader
-        # lookup tablica za opis statusa {broj statusa[int] : string asociranih flagova [str]}
-        self._statusLookup = {}
-        self._status_bits = {}
 
     def get_data(self, kanal, od, do):
         """
@@ -32,7 +28,6 @@ class DataReaderAndCombiner(object):
         """
         try:
             #dohvati status bit info
-            self._status_bits = self.citac.get_statusMap()
             #prazni frejmovi u koje ce se spremati podaci
             masterKoncFrejm = pd.DataFrame(columns=self.citac.expectedColsKonc)
             masterZeroFrejm = pd.DataFrame(columns=self.citac.expectedColsZero)
@@ -81,11 +76,10 @@ class DataReaderAndCombiner(object):
 
 
             fullraspon = pd.date_range(start=start, end=kraj, freq=frek)
-            #konverzija status int to string za koncentracijski frejm
-            statstr = [self._statusInt_to_statusString(i) for i in masterKoncFrejm.loc[:,'status']]
-            masterKoncFrejm.loc[:,'statusString'] = statstr
             #reindex koncentracijski data zbog rupa u podacima (ako nedostaju rubni podaci)
             masterKoncFrejm = masterKoncFrejm.reindex(fullraspon)
+            #sredi satuse missing podataka
+            masterKoncFrejm = self.sredi_missing_podatke(masterKoncFrejm)
             #output frejmove
             return masterKoncFrejm, masterZeroFrejm, masterSpanFrejm
         except Exception as err:
@@ -94,44 +88,18 @@ class DataReaderAndCombiner(object):
                 self.progress.close()
             raise Exception('Problem kod ucitavanja podataka') from err
 
-    def _check_bit(self, broj, bit_position):
-        """
-        Pomocna funkcija za testiranje statusa
-        Napravi temporary integer koji ima samo jedan bit vrijednosti 1 na poziciji
-        bit_position. Napravi binary and takvog broja i ulaznog broja.
-        Ako oba broja imaju bit 1 na istoj poziciji vrati True, inace vrati False.
-        """
-        if bit_position != None:
-            temp = 1 << int(bit_position) #left shift bit za neki broj pozicija
-            if int(broj) & temp > 0: # binary and izmjedju ulaznog broja i testnog broja
-                return True
-            else:
-                return False
+    def sredi_missing_podatke(self, frejm):
+        #indeks svi konc nan
+        i0 = np.isnan(frejm['koncentracija'])
+        #indeks konc i status su nan
+        i1 = (np.isnan(frejm['koncentracija']))&(np.isnan(frejm['status']))
+        #indeks konc je nan, status nije
+        i2 = (np.isnan(frejm['koncentracija']))&([not m for m in np.isnan(frejm['status'])])
 
-    def _check_status_flags(self, broj):
-        """
-        provjeri stauts integera broj dekodirajuci ga sa hash tablicom
-        {bit_pozicija:opisni string}. Vrati string opisa.
-        """
-        flaglist = []
-        for key, value in self._status_bits.items():
-            if self._check_bit(broj, key):
-                flaglist.append(value)
-        opis = ",".join(flaglist)
-        return opis
-
-    def _statusInt_to_statusString(self, sint):
-        if np.isnan(sint):
-            return 'Status nije definiran'
-        sint = int(sint)
-        rez = self._statusLookup.get(sint, None) #see if value exists
-        if rez == None:
-            rez = self._check_status_flags(sint) #calculate
-            self._statusLookup[sint] = rez #store value for future lookup
-        return rez
-
-
-
+        frejm.loc[i1, 'status'] = 32768
+        frejm.loc[i2, 'status'] = [(int(m) | 32768) for m in frejm.loc[i2, 'status']]
+        frejm.loc[i0, 'flag'] = -1000
+        return frejm
 
 
 class RESTZahtjev(object):

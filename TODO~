@@ -1,14 +1,14 @@
 - PM10 Slavonski Brod 2, ne može primijeniti korekciju, vjerojatno je problem što nema zero-a i spana : DONE
 
-- spremanje trenutnog stanja (rada)
+- spremanje trenutnog stanja (rada) : DONE
 
 - ucitavanje: ako vremenski interval nije dozvoljen ne zatvarati dijalog nego tražiti ponovni unos vremena : DONE
 
-- rectangle zoom ne radi ako je pocetak prije prvog podatka
+- rectangle zoom ne radi ako je pocetak prije prvog podatka : DONE
 
-- kod primjene korekcije ne mijenjati zoom
+- kod primjene korekcije ne mijenjati zoom : DONE
 
-- uz delete gumb dodati još i gumb na kalkulator A i B. Otvara se popup i traži se unos:
+- uz delete gumb dodati još i gumb na kalkulator A i B. Otvara se popup i traži se unos: : DONE
 s0, z0, s1, z1, A i B. Defaultne vrijednosti:
 s0 = s1 = A = 1.
 z0 = z1 = B = 0.

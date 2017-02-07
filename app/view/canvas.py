@@ -1211,6 +1211,7 @@ class Kanvas(FigureCanvas):
         self.axesC.clear()
         self.isDrawn = False
         self.crtaj_koncentracija()
+        self.sjencaj_lose_zero_span()
         #restore view
         self.axesC.set_xlim(curzumx)
         self.axesC.set_ylim(curzumy)

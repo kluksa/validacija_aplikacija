@@ -189,15 +189,26 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
 
     def __init__(self, frejm=None, parent=None):
         QtCore.QAbstractTableModel.__init__(self, parent)
-        #TODO! hardcoding = bad...
         self._expectedCols = ['koncentracija', 'korekcija', 'flag', 'statusString',
                                  'status', 'id', 'A', 'B', 'Sr', 'LDL']
         self._dataFrejm = pd.DataFrame(columns=self._expectedCols)
         self._opis = "Postaja , naziv formula ( mjerna jedinica )"
         self._kanalMeta = {}
+
+        self._statusLookup = {}
+        self._status_bits = {}
+
         if frejm is None:
             frejm = pd.DataFrame(columns=self._expectedCols)
         self.frejm = frejm
+
+    def set_status_bits(self, x):
+        self._status_bits = x
+
+    def sredi_status_stringove(self, frejm):
+        statstr = [self._statusInt_to_statusString(i) for i in frejm.loc[:,'status']]
+        frejm.loc[:,'statusString'] = statstr
+        return frejm
 
     @property
     def datafrejm(self):
@@ -206,7 +217,17 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
     @datafrejm.setter
     def datafrejm(self, x):
         if isinstance(x, pd.core.frame.DataFrame):
+            #TODO! kopija lose flagiranih stvari...manualno
             self._dataFrejm = x[self._expectedCols]  # reodrer / crop columns
+            indeksKorekcijaIspodLDL = self._dataFrejm['korekcija'] < self._dataFrejm['LDL']
+            indeksKorekcijaIznadLDL = self._dataFrejm['korekcija'] >= self._dataFrejm['LDL']
+            self._dataFrejm.loc[indeksKorekcijaIspodLDL, 'status'] = [(int(i) | 2048) for i in self._dataFrejm.loc[indeksKorekcijaIspodLDL, 'status']]
+            self._dataFrejm.loc[indeksKorekcijaIznadLDL, 'status'] = [(int(i) & (~2048)) for i in self._dataFrejm.loc[indeksKorekcijaIznadLDL, 'status']]
+            #TODO! preserve manual flags...
+            self._dataFrejm.loc[indeksKorekcijaIspodLDL, 'flag'] = -1000
+            #self._dataFrejm.loc[indeksKorekcijaIznadLDL, 'flag'] = 1
+            #sredi status string
+            self._dataFrejm = self.sredi_status_stringove(self._dataFrejm)
             self.layoutChanged.emit()
         else:
             raise TypeError('Not a pandas DataFrame object'.format(type(x)))
@@ -230,7 +251,6 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
             return step
         except Exception as err:
             logging.error(str(err), exc_info=True)
-            return 60  # round na minutu
 
     @property
     def kanalMeta(self):
@@ -307,16 +327,12 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
         do = argDict['do']
         fl = argDict['noviFlag']
         self._dataFrejm.loc[od:do, 'flag'] = fl
+        if fl < 0:
+            self._dataFrejm.loc[od:do, 'status'] = [(int(i) | 1024) for i in self._dataFrejm.loc[od:do, 'status']]
+        else:
+            self._dataFrejm.loc[od:do, 'status'] = [(int(i) & (~1024)) for i in self._dataFrejm.loc[od:do, 'status']]
+        self._dataFrejm = self.sredi_status_stringove(self._dataFrejm)
         self.layoutChanged.emit()
-
-#    def update_korekciju_i_ldl(self, kor, ldl, a, b, sr):
-#        # TODO!
-#        self._dataFrejm['korekcija'] = kor
-#        self._dataFrejm['LDL'] = ldl
-#        self._dataFrejm['A'] = a
-#        self._dataFrejm['B'] = b
-#        self._dataFrejm['Sr'] = sr
-#        self.layoutChanged.emit()
 
     # QT functionality
     def rowCount(self, parent=QtCore.QModelIndex()):
@@ -353,6 +369,41 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
             if role == QtCore.Qt.DisplayRole:
                 return str(self._dataFrejm.columns[section])
 
+    def _check_bit(self, broj, bit_position):
+        """
+        Pomocna funkcija za testiranje statusa
+        Napravi temporary integer koji ima samo jedan bit vrijednosti 1 na poziciji
+        bit_position. Napravi binary and takvog broja i ulaznog broja.
+        Ako oba broja imaju bit 1 na istoj poziciji vrati True, inace vrati False.
+        """
+        if bit_position != None:
+            temp = 1 << int(bit_position) #left shift bit za neki broj pozicija
+            if int(broj) & temp > 0: # binary and izmjedju ulaznog broja i testnog broja
+                return True
+            else:
+                return False
+
+    def _check_status_flags(self, broj):
+        """
+        provjeri stauts integera broj dekodirajuci ga sa hash tablicom
+        {bit_pozicija:opisni string}. Vrati string opisa.
+        """
+        flaglist = []
+        for key, value in self._status_bits.items():
+            if self._check_bit(broj, key):
+                flaglist.append(value)
+        opis = ",".join(flaglist)
+        return opis
+
+    def _statusInt_to_statusString(self, sint):
+        if np.isnan(sint):
+            return 'Status nije definiran'
+        sint = int(sint)
+        rez = self._statusLookup.get(sint, None) #see if value exists
+        if rez == None:
+            rez = self._check_status_flags(sint) #calculate
+            self._statusLookup[sint] = rez #store value for future lookup
+        return rez
 
 ################################################################################
 ################################################################################
@@ -363,7 +414,6 @@ class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
     """
 
     def __init__(self, tip, frejm=None, parent=None):
-        #TODO! hardcoding = bad...
         QtCore.QAbstractTableModel.__init__(self, parent)
         self._expectedCols = [str(tip), 'korekcija', 'minDozvoljeno',
                               'maxDozvoljeno', 'A', 'B', 'Sr', 'LDL']
@@ -428,8 +478,6 @@ class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
 
     def get_najblizu_vrijednost(self, tajm):
         """getter najblize vijednosti zero ili span vremenskom indeksu tajm (pd.tslib.Timestamp)"""
-        # svi manji ili jednaki od tajm
-        # TODO!
         manji = self._dataFrejm[self._dataFrejm.index <= tajm]
         if len(manji):
             t1 = manji.index[-1]
@@ -474,15 +522,6 @@ class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
             return ymin, ymax
         else:
             return np.NaN, np.NaN
-
-#    def update_korekciju_i_ldl(self, kor, ldl, a, b, sr):
-#        # TODO!
-#        self._dataFrejm['korekcija'] = kor
-#        self._dataFrejm['LDL'] = ldl
-#        self._dataFrejm['A'] = a
-#        self._dataFrejm['B'] = b
-#        self._dataFrejm['Sr'] = sr
-#        self.layoutChanged.emit()
 
     # QT functionality
     def rowCount(self, parent=QtCore.QModelIndex()):
@@ -545,7 +584,6 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
             raise TypeError('Not a pandas DataFrame object'.format(type(x)))
 
     def set_AB_for_row(self, red, a, b):
-        #TODO! fix ab indexing
         self._dataFrejm.iloc[red, 1] = a
         self._dataFrejm.iloc[red, 2] = b
 
@@ -766,7 +804,7 @@ class CalcGumbDelegate(QtGui.QItemDelegate):
         model = view.model() #model unutar table view-a
         indeks = view.indexAt(self.sender().pos())
         gui = view.parent().parent() #gui insatnca
-        ab = gui.get_AB_values() #TODO! not implemented
+        ab = gui.get_AB_values()
         if ab:
             model.set_AB_for_row(indeks.row(), ab[0], ab[1])
             self.commitData.emit(self.sender())

@@ -22,6 +22,9 @@ class Dokument(object):
         self._spanModel = qtmodels.ZeroSpanFrameModel('span')
         self._korekcijaModel = qtmodels.KorekcijaFrameModel()
 
+    def set_koncentracija_status_bits(self, mapa):
+        self._koncModel.set_status_bits(mapa)
+
     @property
     def mjerenja(self):
         """nested dict podataka o pojedinom kanalu"""
@@ -85,7 +88,6 @@ class Dokument(object):
         self._vrijemeDo = x
 
     def get_pickleBinary(self):
-        #TODO!
         #strip korekcija model zadnji red...
         df = self.korekcijaModel.datafrejm
         df = df.iloc[:-1, :]
@@ -99,7 +101,6 @@ class Dokument(object):
         return pickle.dumps(mapa)
 
     def set_pickleBinary(self, binstr):
-        #TODO!
         mapa = pickle.loads(binstr)
         self.koncModel.datafrejm = mapa['koncFrejm']
         self.zeroModel.datafrejm = mapa['zeroFrejm']

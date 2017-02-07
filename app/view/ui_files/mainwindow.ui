@@ -38,6 +38,13 @@
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="buttonExportAgregirane">
+        <property name="text">
+         <string>Export agregirane</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QPushButton" name="buttonSerialize">
         <property name="text">
          <string>Save</string>
