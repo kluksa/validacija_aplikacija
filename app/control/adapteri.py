@@ -3,7 +3,6 @@ import xml.etree.ElementTree as Et
 import numpy as np
 import pandas as pd
 
-import app.model.dto as dto
 
 class MalformedJSONException(Exception):
     """Iznimka kada ne valja ulazni JSON"""
@@ -111,17 +110,18 @@ class ProgramMjerenjaAdapter:
         output: (nested) dictionary sa bitnim podacima. Primarni kljuc je program
         mjerenja id, sekundarni kljucevi su opisni (npr. 'komponentaNaziv')
         """
-        rezultat = []
+        rezultat = {}
         root = Et.fromstring(ulaz)
         for programMjerenja in root:
-            pm = dto.ProgramMjerenja()
-            pm.id = int(programMjerenja.find('id').text)
-            pm.naziv_postaje = programMjerenja.find('.postajaId/nazivPostaje').text
-            pm.komponenta = programMjerenja.find('.komponentaId/formula').text
-            pm.usporedno = programMjerenja.find('usporednoMjerenje').text
-            pm.mjerna_jedinica = programMjerenja.find('.komponentaId/mjerneJediniceId/oznaka').text
-            pm.komponenta = float(programMjerenja.find('.komponentaId/konvVUM').text)
-            pm.povezani_kanali = [pm.id]
-            rezultat.append(pm)
-
+            i = int(programMjerenja.find('id').text)
+            rezultat[i] = {
+                'postajaId': int(programMjerenja.find('.postajaId/id').text),
+                'postajaNaziv': programMjerenja.find('.postajaId/nazivPostaje').text,
+                'komponentaId': programMjerenja.find('.komponentaId/id').text,
+                'komponentaNaziv': programMjerenja.find('.komponentaId/naziv').text,
+                'komponentaMjernaJedinica': programMjerenja.find('.komponentaId/mjerneJediniceId/oznaka').text,
+                'komponentaFormula': programMjerenja.find('.komponentaId/formula').text,
+                'usporednoMjerenje': programMjerenja.find('usporednoMjerenje').text,
+                'konvVUM': float(programMjerenja.find('.komponentaId/konvVUM').text),  # konverizijski volumen,
+                'povezaniKanali': [i]}
         return rezultat

@@ -4,6 +4,7 @@ import logging
 import pandas as pd
 from PyQt4 import QtGui, QtCore, uic
 from requests.exceptions import RequestException
+from datetime import timedelta, date
 
 from app.control.rest_comm import RESTZahtjev, DataReaderAndCombiner, MockZahtjev
 from app.model.qtmodels import GumbDelegate
@@ -31,7 +32,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
 
         # dependency injection kroz konstruktor je puno bolji pattern od slanja konfig objekta
 
-        if True:
+        if False:
             self.restRequest = MockZahtjev()
         else:
             self.restRequest = RESTZahtjev(Konfig.rest()['program_mjerenja'], Konfig.rest()['sirovi_podaci'],
@@ -318,6 +319,8 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
             # spinning cursor...
             QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
             # dohvati frejmove
+            self.pokupi_podatke(self.kanal, self.vrijemeOd, self.vrijemeDo)
+
             tpl = self.data_reader.get_data(self.kanal, self.vrijemeOd, self.vrijemeDo)
             master_konc_frejm, master_zero_frejm, master_span_frejm = tpl
             # spremi frejmove u dokument #TODO! samo 1 level...
@@ -355,6 +358,14 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         finally:
             QtGui.QApplication.restoreOverrideCursor()
 
+
+    def _daterange(self, start_date, end_date):
+            for n in range(int((end_date - start_date).days)):
+                yield start_date + timedelta(n)
+
+    def pokupi_podatke(self, kanal, od, do):
+        for single_date in self._daterange(od, do):
+            single_date.strftime("%Y-%m-%d")
 
 
 class TaskThread(QtCore.QThread):
