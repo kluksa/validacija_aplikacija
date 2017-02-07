@@ -7,13 +7,12 @@ from requests.exceptions import RequestException
 from datetime import timedelta, date
 
 from app.control.rest_comm import RESTZahtjev, DataReaderAndCombiner, MockZahtjev
+from app.control import logging
 from app.model.qtmodels import GumbDelegate
 from app.view import auth_login
 from app.view import kanal_dijalog
 from app.view.canvas import GrafDisplayWidget
 from app.model import konfig_objekt
-from app.model.konfig_objekt import Konfig
-
 
 MAIN_BASE, MAIN_FORM = uic.loadUiType('./app/view/ui_files/mainwindow.ui')
 
@@ -23,11 +22,12 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         super(MAIN_BASE, self).__init__(parent)
         self.cfg = konfig_objekt.MainKonfig('konfig_params.cfg')
         self.cfgGraf = konfig_objekt.GrafKonfig('graf_params.cfg')
-        self.setup_logging()
+        logging.setup_logging()
         self.setupUi(self)
         self.dokument = dokument
         self.toggle_logged_in_state(False)
-        self.kanvas = GrafDisplayWidget(Konfig.icons()['spanSelectIcon'], Konfig.icons()['xZoomIcon'], self.cfgGraf)
+        self.kanvas = GrafDisplayWidget(konfig_objekt.Konfig.icons()['spanSelectIcon'],
+                                        konfig_objekt.Konfig.icons()['xZoomIcon'], self.cfgGraf)
         self.grafLayout.addWidget(self.kanvas)
 
         # dependency injection kroz konstruktor je puno bolji pattern od slanja konfig objekta
@@ -35,11 +35,13 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         if False:
             self.restRequest = MockZahtjev()
         else:
-            self.restRequest = RESTZahtjev(Konfig.rest()['program_mjerenja'], Konfig.rest()['sirovi_podaci'],
-                                       Konfig.rest()['status_map'], Konfig.rest()['zero_span_podaci'])
+            self.restRequest = RESTZahtjev(konfig_objekt.Konfig.rest()['program_mjerenja'],
+                                           konfig_objekt.Konfig.rest()['sirovi_podaci'],
+                                           konfig_objekt.Konfig.rest()['status_map'],
+                                           konfig_objekt.Konfig.rest()['zero_span_podaci'])
 
-        #self.restRequest = RESTZahtjev(self.cfg.cfg['REST') #.restProgramMjerenja, self.cfg.restSiroviPodaci,
-                                       # self.cfg.restStatusMap, self.cfg.restZeroSpanPodaci)
+            # self.restRequest = RESTZahtjev(self.cfg.cfg['REST') #.restProgramMjerenja, self.cfg.restSiroviPodaci,
+            # self.cfg.restStatusMap, self.cfg.restZeroSpanPodaci)
         self.data_reader = DataReaderAndCombiner(self.restRequest)
 
         self.kanal = None
@@ -57,21 +59,8 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         # TODO! triple click fail... treba srediti persistent editor na cijeli stupac
         # self.korekcijaDisplay.setItemDelegateForColumn(4, GumbDelegate(self))
 
+        self.download_podataka_worker = DownlodadPodatakaWorker(self.restRequest, self.dokument)
         self.setup_connections()
-
-    def setup_logging(self):
-        """Inicijalizacija loggera"""
-        try:
-            logging.basicConfig(level=Konfig.log('lvl'),
-                                filename=Konfig.log('file'),
-                                filemode=Konfig.log('mode'),
-                                format='{levelname}:::{asctime}:::{module}:::{funcName}:::LOC:{lineno}:::{message}',
-                                style='{')
-        except Exception as err:
-            print('Pogreska prilikom konfiguracije loggera.')
-            print(str(err))
-            raise SystemExit('Kriticna greska, izlaz iz aplikacije.')
-
 
     def primjeni_korekciju(self):
         try:
@@ -114,7 +103,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.action_quit.triggered.connect(self.close)
         # gumbi za add/remove/edit parametre korekcije i primjenu korekcije
 
-        self.buttonUcitaj.clicked.connect(self.ucitaj_podatke)
+        self.buttonUcitaj.clicked.connect(self.ucitaj_podatke2)
         self.buttonExport.clicked.connect(self.export_korekcije)
         self.buttonPrimjeniKorekciju.clicked.connect(self.primjeni_korekciju)
         # quit
@@ -138,12 +127,23 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.connect(self.kanvas.figure_canvas,
                      QtCore.SIGNAL('update_span_label(PyQt_PyObject)'),
                      self.update_span_labels)
+
         self.connect(self.kanvas,
                      QtCore.SIGNAL('table_select_podatak(PyQt_PyObject)'),
                      self.zoom_to_model_timestamp)
+
         self.connect(self.dokument.korekcijaModel,
                      QtCore.SIGNAL('update_persistent_delegate'),
                      self.sredi_delegate_za_tablicu)
+
+        self.connect(self.download_podataka_worker,
+                     QtCore.SIGNAL('ucitavanjeGotovo'),
+                     self.ucitavanje_gotovo)
+
+        self.connect(self.download_podataka_worker,
+                     QtCore.SIGNAL('ucitavanjeProgress(PyQt_PyObject)'),
+                     self.ucitavanje_progress)
+
 
     def update_opis_grafa(self, opis):
         self.labelOpisGrafa.setText(opis)
@@ -269,7 +269,6 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         else:
             event.ignore()
 
-
     def log_in(self, x):
         try:
             self.restRequest.logmein(x)
@@ -288,7 +287,8 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
             else:
                 QtGui.QApplication.quit()
 
-# REVIEW ovo je besmisleno. Zbog 3 linije koda imaš dupli exception handling
+            # REVIEW ovo je besmisleno. Zbog 3 linije koda imaš dupli exception handling
+
     def init_program_mjerenja(self):
         try:
             QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
@@ -358,54 +358,49 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         finally:
             QtGui.QApplication.restoreOverrideCursor()
 
+    def ucitaj_podatke2(self):
+        if self.program_mjerenja_dlg.exec_():
+            [self.kanal, self.vrijemeOd, self.vrijemeDo] = self.program_mjerenja_dlg.get_izbor()
+        else:
+            return
+        QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+        ndays = int((self.vrijemeDo - self.vrijemeOd).days)
+        self.progress = QtGui.QProgressBar()
+        self.progress.setWindowTitle('Load status:')
+        self.progress.setRange(0, ndays + 1)
+        self.progress.setGeometry(300, 300, 200, 40)
+        self.progress.show()
+        self.download_podataka_worker.set(self.kanal, self.vrijemeOd, ndays)
+        self.download_podataka_worker.start()
 
-    def _daterange(self, start_date, end_date):
-            for n in range(int((end_date - start_date).days)):
-                yield start_date + timedelta(n)
+    def ucitavanje_progress(self, n):
+        self.progress.setValue(n)
 
-    def pokupi_podatke(self, kanal, od, do):
-        for single_date in self._daterange(od, do):
-            single_date.strftime("%Y-%m-%d")
+    def ucitavanje_gotovo(self):
+        self.progress.close()
+        QtGui.QApplication.restoreOverrideCursor()
 
 
-class TaskThread(QtCore.QThread):
+class DownlodadPodatakaWorker(QtCore.QThread):
 
-    notifyProgress = QtCore.pyqtSignal(int)
+    def __init__(self, rest, dokument, parent = None):
+        super(DownlodadPodatakaWorker, self).__init__()
+        self.restRequest = rest
+        self.dokument = dokument
+
+    def set(self, kanal, od, ndays):
+        self.kanal = kanal
+        self.od = od
+        self.ndays = ndays
 
     def run(self):
-        try:
-            tpl = self.data_reader.get_data(self.kanal, self.vrijemeOd, self.vrijemeDo)
-            master_konc_frejm, master_zero_frejm, master_span_frejm = tpl
-            # spremi frejmove u dokument #TODO! samo 1 level...
-            self.dokument.koncModel.datafrejm = master_konc_frejm
-            self.dokument.zeroModel.datafrejm = master_zero_frejm
-            self.dokument.spanModel.datafrejm = master_span_frejm
-            # set clean modela za korekcije u dokument
-            self.dokument.korekcijaModel.datafrejm = pd.DataFrame(columns=['vrijeme', 'A', 'B', 'Sr', 'remove'])
-            # TODO! sredi opis i drugi update gui labela
-            od = str(master_konc_frejm.index[0])
-            do = str(master_konc_frejm.index[-1])
-            self.dokument.set_kanal_info_string(self.kanal, od, do)
-
-            self.update_opis_grafa(self.dokument.koncModel.opis)
-            self.update_konc_labels(('n/a', 'n/a', 'n/a'))
-            self.update_zero_labels(('n/a', 'n/a', 'n/a'))
-            self.update_span_labels(('n/a', 'n/a', 'n/a'))
-            # predavanje (konc, zero, span) modela kanvasu za crtanje (primarni trigger za clear & redraw)
-            self.set_data_models_to_canvas(self.dokument.koncModel,
-                                           self.dokument.zeroModel,
-                                           self.dokument.spanModel)
-        except (AssertionError, RequestException) as e1:
-            msg = "Problem kod dohvaćanja minutnih podataka.\n\n{0}".format(str(e1))
-            logging.error(str(e1), exc_info=True)
-            QtGui.QApplication.restoreOverrideCursor()
-            self.update_opis_grafa("n/a")
-            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
-        except Exception as e2:
-            msg = "General exception. \n\n{0}".format(str(e2))
-            logging.error(str(e2), exc_info=True)
-            QtGui.QApplication.restoreOverrideCursor()
-            self.update_opis_grafa("n/a")
-            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
-
-            self.notifyProgress.emit(i)
+        for d in range(1, self.ndays):
+            dan = (self.od + timedelta(d)).strftime('%Y-%m-%d')
+            mjerenja = self.restRequest.get_sirovi(self.kanal, dan)
+            [zero, span] = self.restRequest.get_zero_span(self.kanal, dan, 1)
+            self.dokument.appendMjerenja(mjerenja)
+            self.dokument.appendZero(zero)
+            self.dokument.appendSpan(span)
+            self.emit(QtCore.SIGNAL("ucitavanjeProgress(PyQt_PyObject)"), d)
+        self.emit(QtCore.SIGNAL("ucitavanjeGotovo"), d)
+        # emiriraj update padataka

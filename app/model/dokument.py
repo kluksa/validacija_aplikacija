@@ -2,7 +2,7 @@
 import copy
 import os
 import pickle
-
+import pandas
 from app.model import qtmodels
 
 
@@ -18,7 +18,7 @@ class Dokument(object):
     """
     def __init__(self):
         # nested dict mjerenja
-        self._mjerenja = {}
+        self._kanali = {}
         # empty tree model programa mjerenja
         drvo = qtmodels.TreeItem(['stanice', None, None, None], parent=None)
         self._treeModelProgramaMjerenja = qtmodels.ModelDrva(drvo)
@@ -28,6 +28,18 @@ class Dokument(object):
         self._zeroModel = qtmodels.ZeroSpanFrameModel('zero')
         self._spanModel = qtmodels.ZeroSpanFrameModel('span')
         self._korekcijaModel = qtmodels.KorekcijaFrameModel()
+        self.sirovi = pandas.DataFrame()
+        self.zero = pandas.DataFrame()
+        self.span = pandas.DataFrame()
+
+    def appendMjerenja(self, df):
+        self.sirovi.append(df)
+
+    def appendSpan(self, df):
+        self.span.append(df)
+
+    def appendZero(self, df):
+        self.zero.append(df)
 
     def spremi_se(self, fajlNejm):
         # TODO funkcionalnost spremanja staviti u zasebni objekt koji onda (de)serijalizira dokument. Ovo je privremeno da pocistim kontroler
@@ -51,12 +63,12 @@ class Dokument(object):
     @property
     def mjerenja(self):
         """nested dict podataka o pojedinom kanalu"""
-        return copy.deepcopy(self._mjerenja)
+        return copy.deepcopy(self._kanali)
 
     @mjerenja.setter
     def mjerenja(self, x):
         if isinstance(x, dict):
-            self._mjerenja = x
+            self._kanali = x
             self._konstruiraj_tree_model()
         else:
             raise TypeError('Ulazni argument mora biti dict, arg = {0}'.format(str(type(x))))
@@ -116,10 +128,10 @@ class Dokument(object):
     def set_kanal_info_string(self, kanal, od, do):
         """setter metapodataka o kanalu u model koncentracije"""
         kid = str(kanal)
-        postaja = self._mjerenja[kanal]['postajaNaziv']
+        postaja = self._kanali[kanal]['postajaNaziv']
         # naziv = mapa[kanal]['komponentaNaziv']
-        formula = self._mjerenja[kanal]['komponentaFormula']
-        mjernaJedinica = self._mjerenja[kanal]['komponentaMjernaJedinica']
+        formula = self._kanali[kanal]['komponentaFormula']
+        mjernaJedinica = self._kanali[kanal]['komponentaMjernaJedinica']
         out = "{0}: {1} | {2} ({3}) | OD: {4} | DO: {5}".format(
             kid,
             postaja,
@@ -131,33 +143,35 @@ class Dokument(object):
         self.koncModel.opis = out
         self.koncModel.kanalMeta = self.mjerenja[kanal]
 
+
+
     def _konstruiraj_tree_model(self):
         # sredjivanje povezanih kanala (NOx grupa i PM grupa)
-        for kanal in self._mjerenja:
+        for kanal in self._kanali:
             pomocni = self._get_povezane_kanale(kanal)
             for i in pomocni:
-                self._mjerenja[kanal]['povezaniKanali'].append(i)
+                self._kanali[kanal]['povezaniKanali'].append(i)
             # sortiraj povezane kanale, predak je bitan zbog radio buttona
-            lista = sorted(self._mjerenja[kanal]['povezaniKanali'])
-            self._mjerenja[kanal]['povezaniKanali'] = lista
+            lista = sorted(self._kanali[kanal]['povezaniKanali'])
+            self._kanali[kanal]['povezaniKanali'] = lista
 
         drvo = qtmodels.TreeItem(['stanice', None, None, None], parent=None)
         # za svaku individualnu stanicu napravi TreeItem objekt, reference objekta spremi u dict
         stanice = []
-        for pmid in sorted(list(self._mjerenja.keys())):
-            stanica = self._mjerenja[pmid]['postajaNaziv']
+        for pmid in sorted(list(self._kanali.keys())):
+            stanica = self._kanali[pmid]['postajaNaziv']
             if stanica not in stanice:
                 stanice.append(stanica)
         stanice = sorted(stanice)
         postaje = [qtmodels.TreeItem([name, None, None, None], parent=drvo) for name in stanice]
         strPostaje = [str(i) for i in postaje]
-        for pmid in self._mjerenja:
-            stanica = self._mjerenja[pmid]['postajaNaziv']  # parent = stanice[stanica]
-            komponenta = self._mjerenja[pmid]['komponentaNaziv']
-            formula = self._mjerenja[pmid]['komponentaFormula']
-            mjernaJedinica = self._mjerenja[pmid]['komponentaMjernaJedinica']
+        for pmid in self._kanali:
+            stanica = self._kanali[pmid]['postajaNaziv']  # parent = stanice[stanica]
+            komponenta = self._kanali[pmid]['komponentaNaziv']
+            formula = self._kanali[pmid]['komponentaFormula']
+            mjernaJedinica = self._kanali[pmid]['komponentaMjernaJedinica']
             opis = " ".join([formula, '[', mjernaJedinica, ']'])
-            usporedno = self._mjerenja[pmid]['usporednoMjerenje']
+            usporedno = self._kanali[pmid]['usporednoMjerenje']
             data = [komponenta, usporedno, pmid, opis]
             redniBrojPostaje = strPostaje.index(stanica)
             # kreacija TreeItem objekta
@@ -175,9 +189,9 @@ class Dokument(object):
         """
         setovi = [('NOx', 'NO', 'NO2'), ('PM10', 'PM1', 'PM2.5')]
         output = set()
-        postaja = self._mjerenja[kanal]['postajaId']
-        formula = self._mjerenja[kanal]['komponentaFormula']
-        usporednoMjerenje = self._mjerenja[kanal]['usporednoMjerenje']
+        postaja = self._kanali[kanal]['postajaId']
+        formula = self._kanali[kanal]['komponentaFormula']
+        usporednoMjerenje = self._kanali[kanal]['usporednoMjerenje']
         ciljaniSet = None
         for kombinacija in setovi:
             if formula in kombinacija:
@@ -186,10 +200,10 @@ class Dokument(object):
         # ako kanal ne pripada setu povezanih...
         if ciljaniSet is None:
             return output
-        for pmid in self._mjerenja:
-            if self._mjerenja[pmid]['postajaId'] == postaja and pmid != kanal:
-                if self._mjerenja[pmid]['komponentaFormula'] in ciljaniSet:
+        for pmid in self._kanali:
+            if self._kanali[pmid]['postajaId'] == postaja and pmid != kanal:
+                if self._kanali[pmid]['komponentaFormula'] in ciljaniSet:
                     # usporedno mjerenje se mora poklapati...
-                    if self._mjerenja[pmid]['usporednoMjerenje'] == usporednoMjerenje:
+                    if self._kanali[pmid]['usporednoMjerenje'] == usporednoMjerenje:
                         output.add(pmid)
         return output
