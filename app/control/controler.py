@@ -99,13 +99,15 @@ class Kontroler(QtGui.QWidget):
         try:
             QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
             self.dokument.primjeni_korekciju()
+            #TODO! lom
             #naredi ponovno crtanje
-            #TODO! dohvati prijasnji zoom i restore zoom poslje
             xraspon = self.gui.get_current_x_zoom_range()
             self.gui.draw_graf()
             self.gui.set_current_x_zoom_range(xraspon)
         except Exception as err:
             msg = "General exception. \n\n{0}".format(str(err))
+            print('FAILCINA')
+            print(msg)
             logging.error(str(err), exc_info=True)
             QtGui.QApplication.restoreOverrideCursor()
             QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)

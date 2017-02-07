@@ -518,7 +518,7 @@ class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
 class KorekcijaFrameModel(QtCore.QAbstractTableModel):
     def __init__(self, frejm=None, parent=None):
         QtCore.QAbstractTableModel.__init__(self, parent)
-        self._dummydata = {'vrijeme': '', 'A': np.NaN, 'B': np.NaN, 'Sr': np.NaN, 'remove': ''}
+        self._dummydata = {'vrijeme': '', 'A': np.NaN, 'B': np.NaN, 'Sr': np.NaN, 'remove': '', 'calc':''}
         self._expectedCols = ['vrijeme', 'A', 'B', 'Sr', 'remove', 'calc']
         self._dataFrejm = pd.DataFrame(columns=self._expectedCols)
         if frejm is None:
@@ -551,7 +551,6 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
 
         self.layoutChanged.emit()
         self.emit(QtCore.SIGNAL('update_persistent_delegate'))
-
 
     def calc_ldl_values(self, frejm):
         """dohvati ldl vrijednosti..."""
