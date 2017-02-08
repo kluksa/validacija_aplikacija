@@ -97,9 +97,15 @@ class DataReaderAndCombiner(object):
         i2 = (np.isnan(frejm['koncentracija']))&([not m for m in np.isnan(frejm['status'])])
 
         frejm.loc[i1, 'status'] = 32768
-        frejm.loc[i2, 'status'] = [(int(m) | 32768) for m in frejm.loc[i2, 'status']]
-        frejm.loc[i0, 'flag'] = -1000
+        frejm.loc[i2, 'status'] = [self._bor_value(m, 32768) for m in frejm.loc[i2, 'status']]
+        frejm.loc[i0, 'flag'] = -1
         return frejm
+
+    def _bor_value(self, status, val):
+        try:
+            return int(status) | int(val)
+        except Exception:
+            return 32768
 
 
 class RESTZahtjev(object):

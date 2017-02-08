@@ -217,15 +217,14 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
     @datafrejm.setter
     def datafrejm(self, x):
         if isinstance(x, pd.core.frame.DataFrame):
-            #TODO! kopija lose flagiranih stvari...manualno
+            #TODO!
             self._dataFrejm = x[self._expectedCols]  # reodrer / crop columns
             indeksKorekcijaIspodLDL = self._dataFrejm['korekcija'] < self._dataFrejm['LDL']
             indeksKorekcijaIznadLDL = self._dataFrejm['korekcija'] >= self._dataFrejm['LDL']
             self._dataFrejm.loc[indeksKorekcijaIspodLDL, 'status'] = [(int(i) | 2048) for i in self._dataFrejm.loc[indeksKorekcijaIspodLDL, 'status']]
             self._dataFrejm.loc[indeksKorekcijaIznadLDL, 'status'] = [(int(i) & (~2048)) for i in self._dataFrejm.loc[indeksKorekcijaIznadLDL, 'status']]
-            #TODO! preserve manual flags...
-            self._dataFrejm.loc[indeksKorekcijaIspodLDL, 'flag'] = -1000
-            #self._dataFrejm.loc[indeksKorekcijaIznadLDL, 'flag'] = 1
+            #TODO! extra flag ako ispod ldl
+            self._dataFrejm.loc[indeksKorekcijaIspodLDL, 'flag'] = -1
             #sredi status string
             self._dataFrejm = self.sredi_status_stringove(self._dataFrejm)
             self.layoutChanged.emit()
@@ -604,6 +603,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         df = self._dataFrejm.copy()
         # izbaci zadnji red (za dodavanje stvari...)
         df = df.iloc[:-1, :]
+        TEST1  = len(df) # broj redova tablice
         # sort
         df.dropna(axis=0, inplace=True)
         df.sort_values(['vrijeme'], inplace=True)
@@ -613,6 +613,10 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         df['A'] = df['A'].astype(float)
         df['B'] = df['B'].astype(float)
         df['Sr'] = df['Sr'].astype(float)
+
+        TEST2  = len(df) # broj redova tablice bez n/a
+        if TEST1 != TEST2:
+            raise ValueError('Parametri korekcije nisu dobro ispunjeni')
         if (not len(df)) or (not len(frejm)):
             #korekcija nije primjenjena jer je frejm sa parametrima prazan ili je sam frejm prazan
             return frejm

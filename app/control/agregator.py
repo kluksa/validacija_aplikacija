@@ -24,7 +24,7 @@ class Agregator(object):
         return np.mean(x)
 
     def test_valjanosti(self, x):
-        if x <= 32768:
+        if x < 32768*2:
             return True
         else:
             return False
@@ -45,9 +45,9 @@ class Agregator(object):
         agregirani['status'] = agStatusi
 
         #2.korak : obuhvat i priprema podataka
-        bezNanKonc = frejm[[not np.isnan(i) for i in frejm['korekcija']]]
-        bezLosihFlagova = bezNanKonc[bezNanKonc['flag']>=0]
-        bezLosihStatusa = bezLosihFlagova[bezLosihFlagova['status']<1024]
+        bezNanKonc = frejm[[not np.isnan(i) for i in frejm['korekcija']]] #bez nan vrijednosti
+        bezLosihFlagova = bezNanKonc[bezNanKonc['flag']>=0] #samo flagovi >= 0
+        bezLosihStatusa = bezLosihFlagova[bezLosihFlagova['status']<1024] #samo statusi ispod 1024
 
         agCount = bezLosihStatusa['korekcija'].resample('H', closed='right', label='right').count()
         agregirani['count'] = agCount

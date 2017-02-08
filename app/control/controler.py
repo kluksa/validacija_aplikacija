@@ -143,6 +143,11 @@ class Kontroler(QtGui.QWidget):
             frejmPodaci = self.dokument.koncModel.datafrejm
             frejmZero = self.dokument.zeroModel.datafrejm
             frejmSpan = self.dokument.spanModel.datafrejm
+            frejmKor = self.dokument.korekcijaModel.datafrejm
+            # izbaci zadnji red (za dodavanje stvari...)
+            frejmKor = frejmKor.iloc[:-1, :]
+            # drop nepotrebne stupce (remove/calc placeholderi)
+            frejmKor.drop(['remove', 'calc'], axis=1, inplace=True)
 
             fajlNejm = QtGui.QFileDialog.getSaveFileName(self.gui,
                                                          "export korekcije")
@@ -152,14 +157,16 @@ class Kontroler(QtGui.QWidget):
                 podName = "podaci_" + name
                 zeroName = "zero_" + name
                 spanName = "span_" + name
+                korName = "korekcijski_parametri_" + name
                 podName = os.path.normpath(os.path.join(folder, podName))
                 zeroName = os.path.normpath(os.path.join(folder, zeroName))
                 spanName = os.path.normpath(os.path.join(folder, spanName))
-
+                korName = os.path.normpath(os.path.join(folder, korName))
                 frejmPodaci.to_csv(podName, sep=';')
                 frejmZero.to_csv(zeroName, sep=';')
                 frejmSpan.to_csv(spanName, sep=';')
-                print('FILES SAVED : ', podName, zeroName, spanName)
+                frejmKor.to_csv(korName, sep=';')
+                print('FILES SAVED : ', podName, zeroName, spanName, korName)
             else:
                 pass
         except Exception as err:
