@@ -330,8 +330,21 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
             self._dataFrejm.loc[od:do, 'status'] = [(int(i) | 1024) for i in self._dataFrejm.loc[od:do, 'status']]
         else:
             self._dataFrejm.loc[od:do, 'status'] = [(int(i) & (~1024)) for i in self._dataFrejm.loc[od:do, 'status']]
+
+        #TODO! LDL se ne smije proglasiti ok... nikad
+        ldlmask = [self._check_for_ldl(i) for i in self._dataFrejm.loc[:, 'status']]
+        self._dataFrejm.loc[ldlmask, 'flag'] = -1
+
         self._dataFrejm = self.sredi_status_stringove(self._dataFrejm)
         self.layoutChanged.emit()
+
+    def _check_for_ldl(self, x):
+        #TODO! helper funkcija... mora na bolji nacin
+        x = int(x)
+        if x | 2048 == x:
+            return True
+        else:
+            return False
 
     # QT functionality
     def rowCount(self, parent=QtCore.QModelIndex()):
@@ -576,7 +589,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
                                columns=self._expectedCols,
                                index=[len(self._dataFrejm)])
             self._dataFrejm = self._dataFrejm.append(red)
-            self.sort(0, QtCore.Qt.AscendingOrder) #TODO! force sort - sort updates delegates
+            self.sort(0, QtCore.Qt.AscendingOrder)
             # reindex
             self._dataFrejm.reset_index()
             self.layoutChanged.emit()
@@ -697,7 +710,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
 
             self.endInsertRows()
             self.layoutChanged.emit()
-            self.sort(0, QtCore.Qt.AscendingOrder) #TODO! force sort - sort updates delegates
+            self.sort(0, QtCore.Qt.AscendingOrder)
             #self.emit(QtCore.SIGNAL('update_persistent_delegate'))
             return True
         except Exception as err:
@@ -721,7 +734,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
 
             self.endRemoveRows()
             self.layoutChanged.emit()
-            self.sort(0, QtCore.Qt.AscendingOrder) #TODO! force sort - sort updates delegates
+            self.sort(0, QtCore.Qt.AscendingOrder)
             #self.emit(QtCore.SIGNAL('update_persistent_delegate'))
             return True
         except Exception as err:
@@ -753,7 +766,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
 
             self.dataChanged.emit(QtCore.QModelIndex(), QtCore.QModelIndex())
             if stupac == 0:
-                self.sort(0, QtCore.Qt.AscendingOrder) #TODO! force sort - sort updates delegates
+                self.sort(0, QtCore.Qt.AscendingOrder)
             return True
         except Exception as err:
             logging.error(str(err), exc_info=True)

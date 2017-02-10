@@ -31,7 +31,8 @@ class Kontroler(QtGui.QWidget):
         self.satniAgregator = Agregator()
 
         self.gui = mainwindow.MainWindow(self.konfig, self.grafKonfig)
-        self.gui.show()
+        self.gui.showMaximized()
+        #self.gui.show()
         self.setup_connections()
         QtCore.QTimer.singleShot(0, self.kickstart_gui)
 

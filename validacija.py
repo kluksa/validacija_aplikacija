@@ -14,7 +14,7 @@ def main(argv):
 
 if __name__ == '__main__':
     main(sys.argv)
-    #TODO! flag LDL nikako se ne smije flagirati sa >0
     #TODO! agregator treba updejtat da igrnorira flagove
     #TODO! provjeri prebacivanje flagova
     #TODO! ENUM ili neki drugi objekt za prijevod statusa
+    #TODO! usporedne kanale... NO2, NOx, NO..
