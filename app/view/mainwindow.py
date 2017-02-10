@@ -7,27 +7,28 @@ from requests.exceptions import RequestException
 from datetime import timedelta, date
 
 from app.control.rest_comm import RESTZahtjev, DataReaderAndCombiner, MockZahtjev
-from app.control import logging
+from app.control import util
 from app.model.qtmodels import GumbDelegate
 from app.view import auth_login
 from app.view import kanal_dijalog
 from app.view.canvas import GrafDisplayWidget
-from app.model import konfig_objekt
+from app.model.konfig_objekt import config, GrafKonfig
+import app.model.dokument
 
 MAIN_BASE, MAIN_FORM = uic.loadUiType('./app/view/ui_files/mainwindow.ui')
 
 
 class MainWindow(MAIN_BASE, MAIN_FORM):
-    def __init__(self, dokument, parent=None):
+    def __init__(self, parent=None):
         super(MAIN_BASE, self).__init__(parent)
-        self.cfg = konfig_objekt.MainKonfig('konfig_params.cfg')
-        self.cfgGraf = konfig_objekt.GrafKonfig('graf_params.cfg')
-        logging.setup_logging()
+        self.cfgGraf = GrafKonfig('graf_params.cfg')
+        util.setup_logging(config.log.file, config.log.level, config.log.mode)
         self.setupUi(self)
-        self.dokument = dokument
+        self.dokument = app.model.dokument.Dokument()
+
         self.toggle_logged_in_state(False)
-        self.kanvas = GrafDisplayWidget(konfig_objekt.Konfig.icons()['spanSelectIcon'],
-                                        konfig_objekt.Konfig.icons()['xZoomIcon'], self.cfgGraf)
+        self.kanvas = GrafDisplayWidget(config.icons.span_select_icon,
+                                        config.icons.x_zoom_icon, self.cfgGraf)
         self.grafLayout.addWidget(self.kanvas)
 
         # dependency injection kroz konstruktor je puno bolji pattern od slanja konfig objekta
@@ -35,10 +36,10 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         if False:
             self.restRequest = MockZahtjev()
         else:
-            self.restRequest = RESTZahtjev(konfig_objekt.Konfig.rest()['program_mjerenja'],
-                                           konfig_objekt.Konfig.rest()['sirovi_podaci'],
-                                           konfig_objekt.Konfig.rest()['status_map'],
-                                           konfig_objekt.Konfig.rest()['zero_span_podaci'])
+            self.restRequest = RESTZahtjev(config.rest.program_mjerenja_url,
+                                           config.rest.sirovi_podaci_url,
+                                           config.rest.status_map_url,
+                                           config.rest.zero_span_podaci_url)
 
             # self.restRequest = RESTZahtjev(self.cfg.cfg['REST') #.restProgramMjerenja, self.cfg.restSiroviPodaci,
             # self.cfg.restStatusMap, self.cfg.restZeroSpanPodaci)
@@ -54,12 +55,13 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.sredi_delegate_za_tablicu()
 
         self.program_mjerenja_dlg = kanal_dijalog.KanalDijalog()
+        self.download_podataka_worker = DownlodadPodatakaWorker(self.restRequest, self.dokument)
 
         # custom persistent delegates...
         # TODO! triple click fail... treba srediti persistent editor na cijeli stupac
         # self.korekcijaDisplay.setItemDelegateForColumn(4, GumbDelegate(self))
 
-        self.download_podataka_worker = DownlodadPodatakaWorker(self.restRequest, self.dokument)
+
         self.setup_connections()
 
     def primjeni_korekciju(self):
@@ -135,14 +137,11 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.connect(self.dokument.korekcijaModel,
                      QtCore.SIGNAL('update_persistent_delegate'),
                      self.sredi_delegate_za_tablicu)
-
         self.connect(self.download_podataka_worker,
-                     QtCore.SIGNAL('ucitavanjeGotovo'),
-                     self.ucitavanje_gotovo)
-
+                     QtCore.SIGNAL('ucitavanjeProgress(PyQt_PyObject)'), self.ucitavanje_progress)
         self.connect(self.download_podataka_worker,
-                     QtCore.SIGNAL('ucitavanjeProgress(PyQt_PyObject)'),
-                     self.ucitavanje_progress)
+                     QtCore.SIGNAL('ucitavanjeGotovo'), self.ucitavanje_gotovo)
+
 
 
     def update_opis_grafa(self, opis):
@@ -370,8 +369,12 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.progress.setRange(0, ndays + 1)
         self.progress.setGeometry(300, 300, 200, 40)
         self.progress.show()
+
+
+
         self.download_podataka_worker.set(self.kanal, self.vrijemeOd, ndays)
         self.download_podataka_worker.start()
+
 
     def ucitavanje_progress(self, n):
         self.progress.setValue(n)
@@ -385,6 +388,7 @@ class DownlodadPodatakaWorker(QtCore.QThread):
 
     def __init__(self, rest, dokument, parent = None):
         super(DownlodadPodatakaWorker, self).__init__()
+
         self.restRequest = rest
         self.dokument = dokument
 

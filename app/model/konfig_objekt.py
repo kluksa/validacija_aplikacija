@@ -5,48 +5,51 @@ import matplotlib.colors as colors
 
 
 class Konfig():
-    cfg = None
-    LOG_LEVELS = {'DEBUG': logging.DEBUG,
-                  'INFO': logging.INFO,
-                  'WARNING': logging.WARNING,
-                  'ERROR': logging.ERROR,
-                  'CRITICAL': logging.CRITICAL}
+    class Log():
+        LOG_LEVELS = {'DEBUG': logging.DEBUG,
+                      'INFO': logging.INFO,
+                      'WARNING': logging.WARNING,
+                      'ERROR': logging.ERROR,
+                      'CRITICAL': logging.CRITICAL}
+        def __init__(self, log_dict):
+            self.level = self.LOG_LEVELS[log_dict['lvl']]
+            self.mode = log_dict['mode']
+            self.file = log_dict['file']
 
-    def read_config(datoteke):
-        Konfig.cfg = configparser.ConfigParser()
+    class Rest():
+
+        def __init__(self, dict):
+            self.program_mjerenja_url = dict['program_mjerenja']
+            self.sirovi_podaci_url = dict['sirovi_podaci']
+            self.status_map_url = dict['status_map']
+            self.zero_span_podaci_url = dict['zero_span_podaci']
+
+    class Icons():
+
+        def __init__(self, dict):
+            self.span_select_icon = dict['spanSelectIcon']
+            self.x_zoom_icon = dict['xZoomIcon']
+
+
+
+    def __init__(self):
+        self._cfg = self.read_config(['konfig_params.cfg', 'graf_params.cfg'])
+        self.log = Konfig.Log(self._cfg['LOG_SETUP'])
+        self.rest = Konfig.Rest(self._cfg['REST'])
+        self.icons = Konfig.Icons(self._cfg['ICONS'])
+
+
+    def read_config(self, datoteke):
+        cfg = configparser.ConfigParser()
         for d in datoteke:
-            Konfig.cfg.read(d)
+            cfg.read(d)
+        return cfg
 
-    @classmethod
-    def rest(cls):
-        return Konfig.cfg['REST']
-
-    @classmethod
-    def log(cls, kljuc):
-        if kljuc == 'lvl':
-            return Konfig.LOG_LEVELS[Konfig.cfg['LOG_SETUP']['lvl']]
-        elif kljuc == 'mode':
-            return Konfig.cfg['LOG_SETUP'][kljuc]
-        else:
-            return Konfig.cfg['LOG_SETUP'][kljuc]
-
-    @classmethod
-    def icons(cls):
-        return Konfig.cfg['ICONS']
-
+config = Konfig()
 
 class MainKonfig(object):
     def __init__(self, cfgFile, parent=None):
-        self.cfg = configparser.ConfigParser(
-            defaults={'REST':
-                          {
-                              'program_mjerenja': 'http://172.20.0.178:8080/SKZ-war/webresources/dhz.skz.rs.programmjerenja/zakljucani',
-                              'sirovi_podaci': 'http://172.20.0.178:8080/SKZ-war/webresources/dhz.skz.rs.sirovipodaci',
-                              'status_map': 'http://172.20.0.178:8080/SKZ-war/webresources/dhz.skz.rs.sirovipodaci/statusi',
-                              'zero_span_podaci': 'http://172.20.0.178:8080/SKZ-war/webresources/dhz.skz.rs.zerospan'
-                              }
-                      }
-        )
+        self.cfg = configparser.ConfigParser()
         self.LOG_LEVELS = {'DEBUG': logging.DEBUG,
                            'INFO': logging.INFO,
                            'WARNING': logging.WARNING,

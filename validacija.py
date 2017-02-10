@@ -9,9 +9,8 @@ from app.model.konfig_objekt import Konfig
 
 
 if __name__ == '__main__':
-    Konfig.read_config(['konfig_params.cfg', 'graf_params.cfg'])
     app = QtGui.QApplication(sys.argv)
-    gui = mainwindow.MainWindow(dokument.Dokument())
+    gui = mainwindow.MainWindow()
     gui.setWindowTitle('Validacija podataka')
     gui.showMaximized()
     gui.handle_login()
