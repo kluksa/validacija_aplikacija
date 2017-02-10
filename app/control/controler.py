@@ -122,13 +122,18 @@ class Kontroler(QtGui.QWidget):
             fajlNejm = QtGui.QFileDialog.getSaveFileName(self.gui,
                                                          "export satno agregiranih")
             if fajlNejm:
+                if not fajlNejm.endswith('.csv'):
+                    fajlNejm = fajlNejm + '.csv'
                 frejm = self.dokument.koncModel.datafrejm
-                broj_u_satu = self.restRequest.get_broj_u_satu(self.kanal)
+                broj_u_satu = self.restRequest.get_broj_u_satu(self.dokument.aktivniKanal)
                 output = self.satniAgregator.satno_agregiraj_frejm(frejm, broj_u_satu)
                 QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
                 output.to_csv(fajlNejm)
+                QtGui.QApplication.restoreOverrideCursor()
+                msg = 'Podaci su uspjesno spremljeni\nagregirani={0}'.format(fajlNejm)
+                QtGui.QMessageBox.information(QtGui.QWidget(), 'Info', msg)
             else:
-                pass
+                pass #canceled
         except Exception as err:
             logging.error(str(err), exc_info=True)
             QtGui.QApplication.restoreOverrideCursor()
@@ -152,6 +157,8 @@ class Kontroler(QtGui.QWidget):
             fajlNejm = QtGui.QFileDialog.getSaveFileName(self.gui,
                                                          "export korekcije")
             if fajlNejm:
+                if not fajlNejm.endswith('.csv'):
+                    fajlNejm = fajlNejm + '.csv'
                 #os... sastavi imena fileova
                 folder, name = os.path.split(fajlNejm)
                 podName = "podaci_" + name
@@ -166,9 +173,11 @@ class Kontroler(QtGui.QWidget):
                 frejmZero.to_csv(zeroName, sep=';')
                 frejmSpan.to_csv(spanName, sep=';')
                 frejmKor.to_csv(korName, sep=';')
-                print('FILES SAVED : ', podName, zeroName, spanName, korName)
+                QtGui.QApplication.restoreOverrideCursor()
+                msg = 'Podaci su uspjesno spremljeni\ndata={0}\nzero={1}\nspan={2}\nParametri={3}'.format(podName, zeroName, spanName, korName)
+                QtGui.QMessageBox.information(QtGui.QWidget(), 'Info', msg)
             else:
-                pass
+                pass # canceled
         except Exception as err:
             msg = "General exception. \n\n{0}".format(str(err))
             logging.error(str(err), exc_info=True)
@@ -283,14 +292,22 @@ class Kontroler(QtGui.QWidget):
         try:
             #get file sa save
             fajlNejm = QtGui.QFileDialog.getSaveFileName(self.gui,
-                                                         "Ucitaj podatke")
-            #spinning cursor...
-            QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+                                                         "Spremi podatke")
+            if fajlNejm:
+                if not fajlNejm.endswith('.dat'):
+                    fajlNejm = fajlNejm + '.dat'
+                #spinning cursor...
+                QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
 
-            bstr = self.dokument.get_pickleBinary()
-            with open(fajlNejm, 'wb') as fn:
-                fn.write(bstr)
+                bstr = self.dokument.get_pickleBinary()
+                with open(fajlNejm, 'wb') as fn:
+                    fn.write(bstr)
 
+                QtGui.QApplication.restoreOverrideCursor()
+                msg = 'Podaci su uspjesno spremljeni\nfile={0}'.format(str(fajlNejm))
+                QtGui.QMessageBox.information(QtGui.QWidget(), 'Info', msg)
+            else:
+                pass # canceled
         except Exception as err:
             msg = "General exception. \n\n{0}".format(str(err))
             logging.error(str(msg), exc_info=True)
@@ -306,23 +323,30 @@ class Kontroler(QtGui.QWidget):
             #get file za load
             fajlNejm = QtGui.QFileDialog.getOpenFileName(self.gui,
                                                          "Ucitaj podatke")
-            #spinning cursor...
-            QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+            if fajlNejm:
+                #spinning cursor...
+                QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
 
-            with open(fajlNejm, 'rb') as fn:
-                bstr = fn.read()
-                self.dokument.set_pickleBinary(bstr)
+                with open(fajlNejm, 'rb') as fn:
+                    bstr = fn.read()
+                    self.dokument.set_pickleBinary(bstr)
 
-            self.gui.update_opis_grafa(self.dokument.koncModel.opis)
-            self.gui.update_konc_labels(('n/a','n/a','n/a'))
-            self.gui.update_zero_labels(('n/a','n/a','n/a'))
-            self.gui.update_span_labels(('n/a','n/a','n/a'))
+                self.gui.update_opis_grafa(self.dokument.koncModel.opis)
+                self.gui.update_konc_labels(('n/a','n/a','n/a'))
+                self.gui.update_zero_labels(('n/a','n/a','n/a'))
+                self.gui.update_span_labels(('n/a','n/a','n/a'))
 
-            #predavanje (konc, zero, span) modela kanvasu za crtanje (primarni trigger za clear & redraw)
-            self.gui.set_data_models_to_canvas(self.dokument.koncModel,
-                                               self.dokument.zeroModel,
-                                               self.dokument.spanModel)
-            self.gui.sredi_delegate_za_tablicu()
+                #predavanje (konc, zero, span) modela kanvasu za crtanje (primarni trigger za clear & redraw)
+                self.gui.set_data_models_to_canvas(self.dokument.koncModel,
+                                                   self.dokument.zeroModel,
+                                                   self.dokument.spanModel)
+                self.gui.sredi_delegate_za_tablicu()
+
+                QtGui.QApplication.restoreOverrideCursor()
+                msg = 'Podaci su uspjesno ucitani\nfile={0}'.format(str(fajlNejm))
+                QtGui.QMessageBox.information(QtGui.QWidget(), 'Info', msg)
+            else:
+                pass # canceled
         except Exception as err:
             msg = "General exception. \n\n{0}".format(str(err))
             logging.error(str(msg), exc_info=True)
