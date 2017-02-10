@@ -576,6 +576,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
                                columns=self._expectedCols,
                                index=[len(self._dataFrejm)])
             self._dataFrejm = self._dataFrejm.append(red)
+            self.sort(0, QtCore.Qt.AscendingOrder) #TODO! force sort - sort updates delegates
             # reindex
             self._dataFrejm.reset_index()
             self.layoutChanged.emit()
@@ -663,6 +664,25 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         if index.isValid():
             return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEditable
 
+    def sort(self, col, order):
+        """
+        Sort tablicu prema broju stupca i redosljedu (QtCore.Qt.AscendingOrder
+        ili QtCore.Qt.DescendingOrder).
+
+        Dozvoljeno je samo sortiranje 0 stupca (vrijeme) i samo u
+        uzlaznom nacinu
+        """
+        if col == 0 and order == QtCore.Qt.AscendingOrder:
+            self.layoutAboutToBeChanged.emit()
+            self._dataFrejm.iloc[-1, 0] = pd.NaT
+            self._dataFrejm = self._dataFrejm.sort_values('vrijeme')
+            self._dataFrejm.iloc[-1, 0] = ''
+            #do the sort
+            self.layoutChanged.emit()
+            self.emit(QtCore.SIGNAL('update_persistent_delegate'))
+        else:
+            pass
+
     def insertRows(self, position, rows=1, index=QtCore.QModelIndex()):
         try:
             self.beginInsertRows(QtCore.QModelIndex(),
@@ -677,7 +697,8 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
 
             self.endInsertRows()
             self.layoutChanged.emit()
-            self.emit(QtCore.SIGNAL('update_persistent_delegate'))
+            self.sort(0, QtCore.Qt.AscendingOrder) #TODO! force sort - sort updates delegates
+            #self.emit(QtCore.SIGNAL('update_persistent_delegate'))
             return True
         except Exception as err:
             logging.error(str(err), exc_info=True)
@@ -700,7 +721,8 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
 
             self.endRemoveRows()
             self.layoutChanged.emit()
-            self.emit(QtCore.SIGNAL('update_persistent_delegate'))
+            self.sort(0, QtCore.Qt.AscendingOrder) #TODO! force sort - sort updates delegates
+            #self.emit(QtCore.SIGNAL('update_persistent_delegate'))
             return True
         except Exception as err:
             logging.error(str(err), exc_info=True)
@@ -730,6 +752,8 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
                 self._dataFrejm.iloc[red, stupac] = str(value)
 
             self.dataChanged.emit(QtCore.QModelIndex(), QtCore.QModelIndex())
+            if stupac == 0:
+                self.sort(0, QtCore.Qt.AscendingOrder) #TODO! force sort - sort updates delegates
             return True
         except Exception as err:
             logging.error(str(err), exc_info=True)

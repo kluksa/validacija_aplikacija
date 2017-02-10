@@ -19,8 +19,8 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.toggle_logged_in_state(False)
         self.kanvas = GrafDisplayWidget(self.cfg.spanSelectIcon, self.cfg.xZoomIcon, self.cfgGraf)
         self.grafLayout.addWidget(self.kanvas)
-
         self.setup_connections()
+
 
     def sredi_delegate_za_tablicu(self):
         model = self.korekcijaDisplay.model()
@@ -159,42 +159,6 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         except (TypeError, LookupError):
             # silent pass, error happens when None or out of bounds point is selected
             pass
-
-        #    def zoom_to_relevant_korekcija(self, x):
-        #        """x je pandas timestamp"""
-        #        model = self.korekcijaDisplay.model()
-        #        indeks = model.get_relevantni_red(x)
-        #        if indeks != None:
-        #            self.korekcijaDisplay.selectRow(indeks)
-        #
-        #    def dodaj_parametar_korekcije(self):
-        #        #defaulti
-        #        mapa = {'time':datetime.datetime.now(), 'A':1.0, 'B':0.0, 'Sr':3.33}
-        #        dijalog = korekcija_dijalog.KorekcijaDijalog(mapa)
-        #        if dijalog.exec_():
-        #            parametri = dijalog.get_izbor()
-        #            model = self.korekcijaDisplay.model()
-        #            model.add_row(parametri)
-        #
-        #    def makni_selektirani_parametar_korekcije(self):
-        #        red = self.korekcijaDisplay.selectionModel().selectedRows()
-        #
-        #        if len(red):
-        #            x = red[0].row()
-        #            model = self.korekcijaDisplay.model()
-        #            model.remove_row(x)
-        #
-        #    def edit_selektirani_parametar_korekcije(self):
-        #        red = self.korekcijaDisplay.selectionModel().selectedRows()
-        #        if len(red):
-        #            x = red[0].row()
-        #            model = self.korekcijaDisplay.model()
-        #            mapa = model.get_row_dict(x)
-        #            dijalog = korekcija_dijalog.KorekcijaDijalog(mapa)
-        #            if dijalog.exec_():
-        #                parametri = dijalog.get_izbor()
-        #                parametri['red'] = x
-        #                model.edit_row(parametri)
 
     def closeEvent(self, event):
         """

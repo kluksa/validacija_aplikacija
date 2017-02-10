@@ -97,6 +97,8 @@ class GrafKonfig(object):
                     return tuple(rgba)
                 else:
                     return fallback
+        elif option in ['markersize', 'linewidth']:
+            return float(out) # force float values for sizes
         else:
             return out
 
