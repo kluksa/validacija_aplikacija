@@ -3,13 +3,13 @@
 
 import sys
 
-import PyQt4
+from PyQt4 import QtGui
 
 from app.view import mainwindow
 
 
 def main(argv):
-    app = PyQt4.QtGui.QApplication(argv)
+    app = QtGui.QApplication(argv)
     gui = mainwindow.MainWindow()
     gui.setWindowTitle('Validacija podataka')
     gui.showMaximized()
