@@ -1,7 +1,9 @@
-import xml.etree.ElementTree as Et
+import json
 
 import numpy as np
 import pandas as pd
+
+import app.model.dto_parser as dto_parser
 
 
 class MalformedJSONException(Exception):
@@ -103,25 +105,13 @@ class PodatakAdapter(Adapter):
 
 
 class ProgramMjerenjaAdapter:
+
     def adaptiraj(self, ulaz):
         """
-        Parsira xml sa programima mjerenja preuzetih sa rest servisa,
-
-        output: (nested) dictionary sa bitnim podacima. Primarni kljuc je program
-        mjerenja id, sekundarni kljucevi su opisni (npr. 'komponentaNaziv')
         """
+        parser = dto_parser.ProgramMjerenjaParser(dto_parser.DTOParser.Vrsta.JSON)
         rezultat = {}
-        root = Et.fromstring(ulaz)
-        for programMjerenja in root:
-            i = int(programMjerenja.find('id').text)
-            rezultat[i] = {
-                'postajaId': int(programMjerenja.find('.postajaId/id').text),
-                'postajaNaziv': programMjerenja.find('.postajaId/nazivPostaje').text,
-                'komponentaId': programMjerenja.find('.komponentaId/id').text,
-                'komponentaNaziv': programMjerenja.find('.komponentaId/naziv').text,
-                'komponentaMjernaJedinica': programMjerenja.find('.komponentaId/mjerneJediniceId/oznaka').text,
-                'komponentaFormula': programMjerenja.find('.komponentaId/formula').text,
-                'usporednoMjerenje': programMjerenja.find('usporednoMjerenje').text,
-                'konvVUM': float(programMjerenja.find('.komponentaId/konvVUM').text),  # konverizijski volumen,
-                'povezaniKanali': [i]}
+        for pm in json.loads(ulaz):
+            p = parser.parse(pm)
+            rezultat[p.id] = p
         return rezultat

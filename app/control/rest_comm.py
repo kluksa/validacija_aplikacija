@@ -268,7 +268,7 @@ class RESTZahtjev(object):
 
         -bitno za test login funkcionalnosti... bogatiji report
         """
-        head = {"accept": "application/xml"}
+        head = {"accept": "application/json"}
         payload = {"id": "findAll", "name": "GET"}
         out = self.program_adapter.adaptiraj(self._get_request(self.program_url, payload, head))
         return out
