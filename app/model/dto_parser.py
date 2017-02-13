@@ -38,7 +38,7 @@ class ProgramMjerenjaParser(DTOParser):
         m = dto.ProgramMjerenja()
         m.id = json['id']
         m.komponenta = self.parser_factory('komponentaId').parse(json['komponentaId'])
-        m.metoda = self.parser_factory('metodaId').parse(json['metodaId'])
+        m.metoda = self.parser_factory('metodaId').parse(json['metodaId']) if json['metodaId'] is not None else None
         m.pocetak_mjerenja = json['pocetakMjerenja']
         m.postaja = self.parser_factory('postajaId').parse(json['postajaId'])
         m.prikaz_web = json['prikazWeb']

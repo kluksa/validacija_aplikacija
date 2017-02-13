@@ -4,7 +4,7 @@ import os
 import pickle
 import pandas
 from app.model import qtmodels
-
+import app.model.dto as dto
 
 
 class Dokument(object):
@@ -125,6 +125,7 @@ class Dokument(object):
         self.zeroModel.datafrejm = self.korekcijaModel.primjeni_korekciju_na_frejm(self.zeroModel.datafrejm)
         self.spanModel.datafrejm = self.korekcijaModel.primjeni_korekciju_na_frejm(self.spanModel.datafrejm)
 
+
     def set_kanal_info_string(self, kanal, od, do):
         """setter metapodataka o kanalu u model koncentracije"""
         kid = str(kanal)
@@ -147,35 +148,36 @@ class Dokument(object):
 
     def _konstruiraj_tree_model(self):
         # sredjivanje povezanih kanala (NOx grupa i PM grupa)
-        for kanal in self._kanali:
-            pomocni = self._get_povezane_kanale(kanal)
-            for i in pomocni:
-                self._kanali[kanal]['povezaniKanali'].append(i)
-            # sortiraj povezane kanale, predak je bitan zbog radio buttona
-            lista = sorted(self._kanali[kanal]['povezaniKanali'])
-            self._kanali[kanal]['povezaniKanali'] = lista
+ #       for kanal in self._kanali:
+ #           pomocni = self._get_povezane_kanale(kanal)
+ #           for i in pomocni:
+ #               self._kanali[kanal]['povezaniKanali'].append(i)
+ #           # sortiraj povezane kanale, predak je bitan zbog radio buttona
+ #           lista = sorted(self._kanali[kanal]['povezaniKanali'])
+ #           self._kanali[kanal]['povezaniKanali'] = lista
 
-        drvo = qtmodels.TreeItem(['stanice', None, None, None], parent=None)
+        drvo = qtmodels.TreeItem('stanice', parent=None)
         # za svaku individualnu stanicu napravi TreeItem objekt, reference objekta spremi u dict
         stanice = []
         for pmid in sorted(list(self._kanali.keys())):
-            stanica = self._kanali[pmid]['postajaNaziv']
-            if stanica not in stanice:
-                stanice.append(stanica)
-        stanice = sorted(stanice)
-        postaje = [qtmodels.TreeItem([name, None, None, None], parent=drvo) for name in stanice]
-        strPostaje = [str(i) for i in postaje]
-        for pmid in self._kanali:
-            stanica = self._kanali[pmid]['postajaNaziv']  # parent = stanice[stanica]
-            komponenta = self._kanali[pmid]['komponentaNaziv']
-            formula = self._kanali[pmid]['komponentaFormula']
-            mjernaJedinica = self._kanali[pmid]['komponentaMjernaJedinica']
-            opis = " ".join([formula, '[', mjernaJedinica, ']'])
-            usporedno = self._kanali[pmid]['usporednoMjerenje']
-            data = [komponenta, usporedno, pmid, opis]
-            redniBrojPostaje = strPostaje.index(stanica)
+            stanica = self._kanali[pmid].postaja
+            if stanica.id not in stanice:
+                qtmodels.TreeItem(stanica, parent=drvo)
+                stanice.append(stanica.id)
+
+#        strPostaje = [str(i) for i in postaje]
+#        for pmid in self._kanali:
+#            program = self._kanali[pmid]
+#            stanica = self._kanali[pmid]['postajaNaziv']  # parent = stanice[stanica]
+#            komponenta = self._kanali[pmid]['komponentaNaziv']
+#            formula = self._kanali[pmid]['komponentaFormula']
+#            mjernaJedinica = self._kanali[pmid]['komponentaMjernaJedinica']
+#            opis = " ".join([formula, '[', mjernaJedinica, ']'])
+#            usporedno = self._kanali[pmid]['usporednoMjerenje']
+#            data = [komponenta, usporedno, pmid, opis]
+#            redniBrojPostaje = strPostaje.index(stanica)
             # kreacija TreeItem objekta
-            qtmodels.TreeItem(data, parent=postaje[redniBrojPostaje])
+#            qtmodels.TreeItem(program, parent=postaje[redniBrojPostaje])
         self._treeModelProgramaMjerenja = qtmodels.ModelDrva(drvo)
 
     def _get_povezane_kanale(self, kanal):
@@ -200,6 +202,7 @@ class Dokument(object):
         # ako kanal ne pripada setu povezanih...
         if ciljaniSet is None:
             return output
+
         for pmid in self._kanali:
             if self._kanali[pmid]['postajaId'] == postaja and pmid != kanal:
                 if self._kanali[pmid]['komponentaFormula'] in ciljaniSet:

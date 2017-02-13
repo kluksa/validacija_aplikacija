@@ -4,6 +4,7 @@ import copy
 import numpy as np
 import pandas as pd
 from PyQt4 import QtGui, QtCore
+import app.model.dto as dto
 
 
 ################################################################################
@@ -45,36 +46,20 @@ class TreeItem(object):
             return self._parent._children.index(self)
         return 0
 
-    def columnCount(self):
-        """
-        TreeItem objekt se inicijalizira sa "spremnikom" podataka
-        ova funkcija vraca broj podataka u spremniku
-        """
-        return len(self._data)
-
-    def data(self, column):
-        """
-        funkcija koja dohvaca element iz "spremnika" podataka
-
-        promjeni implementaciju ako se promjeni 'priroda' spremnika
-        npr. ako je spremnik integer vrijednost ovo nece raditi
-        """
-        return self._data[column]
-
     def parent(self):
         """
         vrati instancu parent objekta
         """
         return self._parent
 
-    def __repr__(self):
-        """
-        print() reprezentacija objekta
-
-        promjeni implementaciju ako se promjeni 'priroda' spremnika
-        npr. ako je spremnik integer vrijednost ovo nece raditi
-        """
-        return str(self.data(0))
+ #   def __repr__(self):
+ #       """
+ #       print() reprezentacija objekta
+#
+#        promjeni implementaciju ako se promjeni 'priroda' spremnika
+#        npr. ako je spremnik integer vrijednost ovo nece raditi
+#        """
+#        return str(self.data.id)
 
 
 ################################################################################
@@ -127,15 +112,16 @@ class ModelDrva(QtCore.QAbstractItemModel):
             return None
         item = self.getItem(index)
 
+
+
+
+
         if role == QtCore.Qt.DisplayRole:
-            if index.column() == 0:
-                return item.data(0)
-            elif index.column() == 1:
-                return item.data(3)
-            elif index.column() == 2:
-                return item.data(2)
-            elif index.column() == 3:
-                return item.data(1)
+            if isinstance(item._data, dto.Postaja):
+                if index.column() == 0:
+                    return item._data.naziv_postaje
+                else:
+                    return None
 
     def rowCount(self, parent=QtCore.QModelIndex()):
         """

@@ -362,6 +362,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
             [self.kanal, self.vrijemeOd, self.vrijemeDo] = self.program_mjerenja_dlg.get_izbor()
         else:
             return
+        self.update_opis_grafa(self.dokument.koncModel.opis)
         QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
         ndays = int((self.vrijemeDo - self.vrijemeOd).days)
         self.progress = QtGui.QProgressBar()
