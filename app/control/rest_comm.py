@@ -177,7 +177,7 @@ class MockZahtjev():
         return zero, span
 
     def get_programe_mjerenja(self):
-        with open("/home/kraljevic/PycharmProjects/validacija_aplikacija/test_resources/program.xml", "r") as myfile:
+        with open("/home/kraljevic/PycharmProjects/validacija_aplikacija/test_resources/program.json", "r") as myfile:
             data = myfile.readline()
         out = self.program_adapter.adaptiraj(data)
         return out

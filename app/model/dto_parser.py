@@ -74,6 +74,7 @@ class KomponentaParser(DTOParser):
         m.naziv = json['naziv']
         m.naziv_eng = json['nazivEng']
         m.vrsta_komponente = json['vrstaKomponente']
+        return m
 
 
 class MjerneJediniceParser(DTOParser):

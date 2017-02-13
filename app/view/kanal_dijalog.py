@@ -20,15 +20,15 @@ class KanalDijalog(BASE_KANAL_DIJALOG, FORM_KANAL_DIJALOG):
         self.treeView.setModel(drvo)
 
     def accept(self):
-        od = self.kalendarOd.selectedDate().toPyDate()
-        do = self.kalendarDo.selectedDate().toPyDate()
+        self.vrijemeOd = self.kalendarOd.selectedDate().toPyDate()
+        self.vrijemeDo = self.kalendarDo.selectedDate().toPyDate()
         indexes = self.treeView.selectedIndexes()
         if len(indexes) > 0:
             index = indexes[0]
             item = self.drvo.getItem(index)
-            self.izabraniKanal = item._data[2]
+            self.izabraniKanal = item.itemData
 
-        timeRaspon = (do - od).days
+        timeRaspon = (self.vrijemeDo - self.vrijemeOd).days
         if timeRaspon < 1:
             QtGui.QMessageBox.warning(self, 'Problem', 'Vremenski raspon nije dobro zadan')
             return
@@ -37,8 +37,3 @@ class KanalDijalog(BASE_KANAL_DIJALOG, FORM_KANAL_DIJALOG):
             return
         else:
             self.done(self.Accepted)
-
-    def get_izbor(self):
-        od = self.kalendarOd.selectedDate().toPyDate()  # .strftime('%Y-%m-%d')
-        do = self.kalendarDo.selectedDate().toPyDate()  # .strftime('%Y-%m-%d')
-        return self.izabraniKanal, od, do

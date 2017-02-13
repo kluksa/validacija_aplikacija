@@ -110,8 +110,7 @@ class ProgramMjerenjaAdapter:
         """
         """
         parser = dto_parser.ProgramMjerenjaParser(dto_parser.DTOParser.Vrsta.JSON)
-        rezultat = {}
+        rezultat = []
         for pm in json.loads(ulaz):
-            p = parser.parse(pm)
-            rezultat[p.id] = p
+            rezultat.append(parser.parse(pm))
         return rezultat

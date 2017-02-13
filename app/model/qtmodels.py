@@ -1,65 +1,105 @@
 # -*- coding: utf-8 -*-
-import logging
 import copy
+import logging
+
 import numpy as np
 import pandas as pd
 from PyQt4 import QtGui, QtCore
-import app.model.dto as dto
-
 
 ################################################################################
 ################################################################################
-class TreeItem(object):
-    """
-    tree node object
+"""
+tree node object
 
-    self._parent --> referencira parent node (takodjer TreeItem objekt)
-    self._children --> LISTA djece (svi child itemi su TreeItem objekti)
-    self._data --> kontenjer koji sadrzi neke podatke (npr, lista, dict...)
-    """
+self._parent --> referencira parent node (takodjer TreeItem objekt)
+self._children --> LISTA djece (svi child itemi su TreeItem objekti)
+self._data --> kontenjer koji sadrzi neke podatke (npr, lista, dict...)
+"""
 
+
+class TreeItem():
     def __init__(self, data, parent=None):
-        self._parent = parent
-        self._data = data
-        self._children = []
-        if self._parent is not None:
-            self._parent._children.append(self)
+        self.parentItem = parent
+        self.itemData = data
+        self.childItems = []
+        self.sorting_polje = data
+
+    def sort_children(self):
+        self.childItems = sorted(self.childItems, key=lambda item: item.sorting_polje)
+        for child in self.childItems:
+            child.sort_children()
+
+    def appendChild(self, item):
+        self.childItems.append(item)
 
     def child(self, row):
-        """
-        vrati child za pozicije row
-        """
-        return self._children[row]
+        return self.childItems[row]
 
     def child_count(self):
-        """
-        ukupan broj child itema
-        """
-        return len(self._children)
-
-    def childNumber(self):
-        """
-        vrati indeks pod kojim se ovaj objekt nalazi u listi djece
-        parent objekta
-        """
-        if self._parent is not None:
-            return self._parent._children.index(self)
-        return 0
+        return len(self.childItems)
 
     def parent(self):
-        """
-        vrati instancu parent objekta
-        """
-        return self._parent
+        return self.parentItem
 
- #   def __repr__(self):
- #       """
- #       print() reprezentacija objekta
-#
-#        promjeni implementaciju ako se promjeni 'priroda' spremnika
-#        npr. ako je spremnik integer vrijednost ovo nece raditi
-#        """
-#        return str(self.data.id)
+    def row(self):
+        if self.parentItem:
+            return self.parentItem.childItems.index(self)
+        return 0
+
+    def setData(self, data):
+        self.itemData = data
+
+    def columnCount(self):
+        return len(self.itemData)
+
+    def data(self, column):
+        if column == 0:
+            return self.itemData
+        else:
+            return None
+
+
+class PostajaItem(TreeItem):
+    def __init__(self, data, parent=None):
+        super(self.__class__, self).__init__(data, parent)
+        self.sorting_polje = self.itemData.naziv_postaje
+
+    def columnCount(self):
+        return 4
+
+    def data(self, column):
+        if column == 0:
+            return self.itemData.naziv_postaje
+        else:
+            return None
+
+    def sort_children(self):
+        self.childItems = sorted(self.childItems, key=lambda item: item.sorting_polje)
+        for child in self.childItems:
+            child.sort_children()
+
+
+class ProgramMjerenjaItem(TreeItem):
+    def __init__(self, data, parent=None):
+        super(self.__class__, self).__init__(data, parent)
+        self.sorting_polje = self.itemData.id
+
+    def columnCount(self):
+        return 4
+
+    def data(self, column):
+        try:
+            if column == 0:
+                return self.itemData.id
+            elif column == 1:
+                return self.itemData.komponenta.formula
+            elif column == 2:
+                return self.itemData.usporedno
+            elif column == 3:
+                return self.itemData.komponenta.naziv
+
+        except IndexError:
+            return None
 
 
 ################################################################################
@@ -110,18 +150,12 @@ class ModelDrva(QtCore.QAbstractItemModel):
         """
         if not index.isValid():
             return None
+
+        if role != QtCore.Qt.DisplayRole:
+            return None
         item = self.getItem(index)
 
-
-
-
-
-        if role == QtCore.Qt.DisplayRole:
-            if isinstance(item._data, dto.Postaja):
-                if index.column() == 0:
-                    return item._data.naziv_postaje
-                else:
-                    return None
+        return item.data(index.column())
 
     def rowCount(self, parent=QtCore.QModelIndex()):
         """
@@ -134,7 +168,10 @@ class ModelDrva(QtCore.QAbstractItemModel):
         """
         vrati broj stupaca (bitno za view)
         """
-        return 4
+        if parent.isValid():
+            return parent.internalPointer().columnCount()
+        else:
+            return self.rootItem.columnCount()
 
     def parent(self, index):
         """
@@ -150,7 +187,7 @@ class ModelDrva(QtCore.QAbstractItemModel):
         if parentItem == self.rootItem:
             return QtCore.QModelIndex()
         else:
-            return self.createIndex(parentItem.childNumber(), 0, parentItem)
+            return self.createIndex(parentItem.child_count(), 0, parentItem)
 
     def headerData(self, section, orientation, role):
         """
@@ -175,9 +212,9 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
 
     def __init__(self, frejm=None, parent=None):
         QtCore.QAbstractTableModel.__init__(self, parent)
-        #TODO! hardcoding = bad...
+        # TODO! hardcoding = bad...
         self._expectedCols = ['koncentracija', 'korekcija', 'flag', 'statusString',
-                                 'status', 'id', 'A', 'B', 'Sr', 'LDL']
+                              'status', 'id', 'A', 'B', 'Sr', 'LDL']
         self._dataFrejm = pd.DataFrame(columns=self._expectedCols)
         self._opis = "Postaja , naziv formula ( mjerna jedinica )"
         self._kanalMeta = {}
@@ -349,7 +386,7 @@ class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
     """
 
     def __init__(self, tip, frejm=None, parent=None):
-        #TODO! hardcoding = bad...
+        # TODO! hardcoding = bad...
         QtCore.QAbstractTableModel.__init__(self, parent)
         self._expectedCols = [str(tip), 'korekcija', 'minDozvoljeno',
                               'maxDozvoljeno', 'A', 'B', 'Sr', 'LDL']
@@ -540,7 +577,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
 
     def primjeni_korekciju_na_frejm(self, frejm):
         """primjena korekcije na zadani frejm..."""
-        #pripremi frejm korekcije za rad
+        # pripremi frejm korekcije za rad
         df = self._dataFrejm.copy()
         # izbaci zadnji red (za dodavanje stvari...)
         df = df.iloc[:-1, :]
@@ -548,13 +585,13 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         df.dropna(axis=0, inplace=True)
         df.sort_values(['vrijeme'], inplace=True)
         df = df.set_index(df['vrijeme'])
-        #drop stupce koji su pomocni
+        # drop stupce koji su pomocni
         df.drop(['remove', 'vrijeme'], axis=1, inplace=True)
         df['A'] = df['A'].astype(float)
         df['B'] = df['B'].astype(float)
         df['Sr'] = df['Sr'].astype(float)
         if (not len(df)) or (not len(frejm)):
-            #korekcija nije primjenjena jer je frejm sa parametrima prazan ili je sam frejm prazan
+            # korekcija nije primjenjena jer je frejm sa parametrima prazan ili je sam frejm prazan
             return frejm
         try:
             zadnjiIndeks = list(df.index)[-1]
@@ -566,21 +603,21 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
             # interpoliraj na minutnu razinu
             savedSr = df['Sr']
             df = df.resample('Min').interpolate()
-            #sredi Sr da bude skokovit
-            for i in range(len(savedSr)-1):
+            # sredi Sr da bude skokovit
+            for i in range(len(savedSr) - 1):
                 ind1 = savedSr.index[i]
-                ind2 = savedSr.index[i+1]
+                ind2 = savedSr.index[i + 1]
                 val = savedSr.iloc[i]
                 df.loc[ind1:ind2, 'Sr'] = val
             df = self.calc_ldl_values(df)
             df = df.reindex(frejm.index)  # samo za definirane indekse...
-            #slozi podatke u input frejm
+            # slozi podatke u input frejm
             frejm['A'] = df['A']
             frejm['B'] = df['B']
             frejm['Sr'] = df['Sr']
             frejm['LDL'] = df['LDL']
-            #izracunaj korekciju i apply
-            korekcija = frejm.iloc[:,0] * frejm.loc[:,'A'] + frejm.loc[:,'B']
+            # izracunaj korekciju i apply
+            korekcija = frejm.iloc[:, 0] * frejm.loc[:, 'A'] + frejm.loc[:, 'B']
             frejm['korekcija'] = korekcija
             return frejm
         except Exception as err:

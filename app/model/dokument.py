@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-import copy
 import os
 import pickle
+
 import pandas
+
 from app.model import qtmodels
-import app.model.dto as dto
 
 
 class Dokument(object):
@@ -18,10 +18,9 @@ class Dokument(object):
     """
     def __init__(self):
         # nested dict mjerenja
-        self._kanali = {}
+        self.programi = []
         # empty tree model programa mjerenja
-        drvo = qtmodels.TreeItem(['stanice', None, None, None], parent=None)
-        self._treeModelProgramaMjerenja = qtmodels.ModelDrva(drvo)
+        self._treeModelProgramaMjerenja = None
 
         # modeli za prikaz podataka
         self._koncModel = qtmodels.KoncFrameModel()
@@ -31,6 +30,10 @@ class Dokument(object):
         self.sirovi = pandas.DataFrame()
         self.zero = pandas.DataFrame()
         self.span = pandas.DataFrame()
+
+        self.aktivni_kanal = None
+        self.vrijeme_od = None
+        self.vrijeme_do = None
 
     def appendMjerenja(self, df):
         self.sirovi.append(df)
@@ -61,19 +64,6 @@ class Dokument(object):
         frejmSpan.to_csv(spanName, sep=';')
 
     @property
-    def mjerenja(self):
-        """nested dict podataka o pojedinom kanalu"""
-        return copy.deepcopy(self._kanali)
-
-    @mjerenja.setter
-    def mjerenja(self, x):
-        if isinstance(x, dict):
-            self._kanali = x
-            self._konstruiraj_tree_model()
-        else:
-            raise TypeError('Ulazni argument mora biti dict, arg = {0}'.format(str(type(x))))
-
-    @property
     def treeModelProgramaMjerenja(self):
         """Qt tree model za izbor kanala"""
         return self._treeModelProgramaMjerenja
@@ -98,14 +88,15 @@ class Dokument(object):
         """Qt table model sa tockama za korekciju"""
         return self._korekcijaModel
 
-    def get_pickleBinary(self, fname, kanal, od, do):
-        mapa = {'kanal': kanal,
-                'od': od,
-                'do': do,
+    def get_pickleBinary(self, fname):
+        mapa = {'kanal': self.aktivni_kanal,
+                'od': self.vrijeme_od,
+                'do': self.vrijeme_do,
                 'koncFrejm': self.koncModel.datafrejm,
                 'zeroFrejm': self.zeroModel.datafrejm,
                 'spanFrejm': self.spanModel.datafrejm,
-                'korekcijaFrejm': self.korekcijaModel.datafrejm}
+                'korekcijaFrejm': self.korekcijaModel.datafrejm,
+                'programiMjerenja': self.programi}
         return pickle.dumps(mapa)
 
     def set_pickleBinary(self, binstr):
@@ -114,9 +105,10 @@ class Dokument(object):
         self.zeroModel.datafrejm = mapa['zeroFrejm']
         self.spanModel.datafrejm = mapa['spanFrejm']
         self.korekcijaModel.datafrejm = mapa['korekcijaFrejm']
-        od = mapa['od']
-        do = mapa['do']
-        kanal = mapa['kanal']
+        self.vrijeme_od = mapa['od']
+        self.vrijeme_do = mapa['do']
+        self.aktivni_kanal = mapa['kanal']
+        self.postavi_program_mjerenja(mapa['programiMjerenja'])
         # TODO! emit request za redraw
 
     def primjeni_korekciju(self):
@@ -125,28 +117,7 @@ class Dokument(object):
         self.zeroModel.datafrejm = self.korekcijaModel.primjeni_korekciju_na_frejm(self.zeroModel.datafrejm)
         self.spanModel.datafrejm = self.korekcijaModel.primjeni_korekciju_na_frejm(self.spanModel.datafrejm)
 
-
-    def set_kanal_info_string(self, kanal, od, do):
-        """setter metapodataka o kanalu u model koncentracije"""
-        kid = str(kanal)
-        postaja = self._kanali[kanal]['postajaNaziv']
-        # naziv = mapa[kanal]['komponentaNaziv']
-        formula = self._kanali[kanal]['komponentaFormula']
-        mjernaJedinica = self._kanali[kanal]['komponentaMjernaJedinica']
-        out = "{0}: {1} | {2} ({3}) | OD: {4} | DO: {5}".format(
-            kid,
-            postaja,
-            formula,
-            mjernaJedinica,
-            od,
-            do)
-        # set podatke u konc model
-        self.koncModel.opis = out
-        self.koncModel.kanalMeta = self.mjerenja[kanal]
-
-
-
-    def _konstruiraj_tree_model(self):
+    def postavi_program_mjerenja(self, programi):
         # sredjivanje povezanih kanala (NOx grupa i PM grupa)
  #       for kanal in self._kanali:
  #           pomocni = self._get_povezane_kanale(kanal)
@@ -156,28 +127,17 @@ class Dokument(object):
  #           lista = sorted(self._kanali[kanal]['povezaniKanali'])
  #           self._kanali[kanal]['povezaniKanali'] = lista
 
-        drvo = qtmodels.TreeItem('stanice', parent=None)
-        # za svaku individualnu stanicu napravi TreeItem objekt, reference objekta spremi u dict
-        stanice = []
-        for pmid in sorted(list(self._kanali.keys())):
-            stanica = self._kanali[pmid].postaja
-            if stanica.id not in stanice:
-                qtmodels.TreeItem(stanica, parent=drvo)
-                stanice.append(stanica.id)
+        self.programi = programi
+        drvo = qtmodels.TreeItem(['stanice', None, None, None], parent=None)
+        pomocna_mapa = {}
+        for pm in programi:
+            if pm.postaja.id not in pomocna_mapa:
+                pomocna_mapa[pm.postaja.id] = qtmodels.PostajaItem(pm.postaja, parent=drvo)
+                drvo.appendChild(pomocna_mapa[pm.postaja.id])
+            postaja = pomocna_mapa[pm.postaja.id]
+            postaja.appendChild(qtmodels.ProgramMjerenjaItem(pm, parent=postaja))
 
-#        strPostaje = [str(i) for i in postaje]
-#        for pmid in self._kanali:
-#            program = self._kanali[pmid]
-#            stanica = self._kanali[pmid]['postajaNaziv']  # parent = stanice[stanica]
-#            komponenta = self._kanali[pmid]['komponentaNaziv']
-#            formula = self._kanali[pmid]['komponentaFormula']
-#            mjernaJedinica = self._kanali[pmid]['komponentaMjernaJedinica']
-#            opis = " ".join([formula, '[', mjernaJedinica, ']'])
-#            usporedno = self._kanali[pmid]['usporednoMjerenje']
-#            data = [komponenta, usporedno, pmid, opis]
-#            redniBrojPostaje = strPostaje.index(stanica)
-            # kreacija TreeItem objekta
-#            qtmodels.TreeItem(program, parent=postaje[redniBrojPostaje])
+        drvo.sort_children()
         self._treeModelProgramaMjerenja = qtmodels.ModelDrva(drvo)
 
     def _get_povezane_kanale(self, kanal):
