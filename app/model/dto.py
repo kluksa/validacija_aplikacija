@@ -77,3 +77,30 @@ class ProgramMjerenja(dexml.Model):
     postaja = fields.Model(Postaja, tagname='postajaId')
     prikaz_web = fields.String(tagname='prikazWeb')
     usporedno = fields.Integer(tagname='usporednoMjerenje')
+
+
+class ProgramMjerenjaNox(ProgramMjerenja):
+    id_no = None
+    id_no2 = None
+    komponenta_no = None
+    komponenta_no2 = None
+
+    def __init__(self, program):
+        super(ProgramMjerenja, self).__init__()
+        self.metoda = program.metoda
+        self.pocetak_mjerenja = program.pocetak_mjerenja
+        self.postaja = program.postaja
+        self.prikaz_web = program.prikaz_web
+        self.usporedno = program.usporedno
+        self.dodaj_program(program)
+
+    def dodaj_program(self, program):
+        if program.komponenta.formula == 'NO':
+            self.id_no = program.id
+            self.komponenta_no = program.komponenta
+        elif program.komponenta.formula == 'NOx':
+            self.id = program.id
+            self.komponenta = program.komponenta
+        elif program.komponenta.formula == 'NO2':
+            self.id_no2 = program.id
+            self.komponenta_no2 = program.komponenta

@@ -3,8 +3,8 @@ import json
 import numpy as np
 import pandas as pd
 
+import app.model.dto as dto
 import app.model.dto_parser as dto_parser
-
 
 class MalformedJSONException(Exception):
     """Iznimka kada ne valja ulazni JSON"""
@@ -110,8 +110,17 @@ class ProgramMjerenjaAdapter:
         """
         """
         parser = dto_parser.ProgramMjerenjaParser(dto_parser.DTOParser.Vrsta.JSON)
-        rezultat = {}
+        rezultat = []
+        nox = {}
         for pm in json.loads(ulaz):
-            p = parser.parse(pm)
-            rezultat[p.id] = p
+            program = parser.parse(pm)
+            if program.komponenta.formula in ['NO', 'NO2', 'NOx']:
+                kljuc = str(program.postaja.id) + ":" + str(program.usporedno)
+                if kljuc not in nox.keys():
+                    nox[kljuc] = dto.ProgramMjerenjaNox(program)
+                nox[kljuc].dodaj_program(program)
+            else:
+                rezultat.append(parser.parse(pm))
+        for k, v in nox.items():
+            rezultat.append(v)
         return rezultat
