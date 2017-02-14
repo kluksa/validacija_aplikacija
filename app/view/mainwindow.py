@@ -43,7 +43,9 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
             # self.restRequest = RESTZahtjev(self.cfg.cfg['REST') #.restProgramMjerenja, self.cfg.restSiroviPodaci,
             # self.cfg.restStatusMap, self.cfg.restZeroSpanPodaci)
         self.data_reader = DataReaderAndCombiner(self.restRequest)
-        self.progress_bar = ProgressBar()
+        self.progress_bar = QtGui.QProgressBar()
+        self.progress_bar.setWindowTitle('Load status:')
+        self.progress_bar.setGeometry(300, 300, 200, 40)
 
         self.kanal = None
         self.vrijemeOd = None
@@ -55,7 +57,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.sredi_delegate_za_tablicu()
 
         self.program_mjerenja_dlg = kanal_dijalog.KanalDijalog()
-        self.download_podataka_worker = DownlodadPodatakaWorker(self.restRequest, self.dokument)
+        self.download_podataka_worker = DownloadPodatakaWorker(self.restRequest)
 
         # custom persistent delegates...
         # TODO! triple click fail... treba srediti persistent editor na cijeli stupac
@@ -290,8 +292,8 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
     def init_program_mjerenja(self):
         try:
             QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
-            self.dokument.postavi_program_mjerenja(self.restRequest.get_programe_mjerenja())
-            self.program_mjerenja_dlg.set_program(self.dokument.treeModelProgramaMjerenja)
+            ####
+            self.program_mjerenja_dlg.set_program(self.restRequest.get_programe_mjerenja())
         except (AssertionError, RequestException) as e1:
             msg = "Problem kod dohvaćanja podataka o mjerenjima.\n\n{0}".format(str(e1))
             logging.error(str(e1), exc_info=True)
@@ -391,30 +393,26 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
     def ucitavanje_progress(self, n):
         self.progress_bar.setValue(n)
 
-
     def ucitavanje_gotovo(self):
         self.progress_bar.close()
         QtGui.QApplication.restoreOverrideCursor()
-        self.dokument.koncModel.datafrejm = self.dokument.sirovi
-        self.dokument.zeroModel.datafrejm = self.dokument.zero
-        self.dokument.spanModel.datafrejm = self.dokument.span
+        self.dokument.koncModel.datafrejm = self.download_podataka_worker.mjerenja_df
+        self.dokument.zeroModel.datafrejm = self.download_podataka_worker.zero_df
+        self.dokument.spanModel.datafrejm = self.download_podataka_worker.span_df
         # set clean modela za korekcije u dokument
         self.dokument.korekcijaModel.datafrejm = pd.DataFrame(columns=['vrijeme', 'A', 'B', 'Sr', 'remove'])
         self.set_data_models_to_canvas(self.dokument.koncModel,
                                        self.dokument.zeroModel,
                                        self.dokument.spanModel)
-        self.update_opis_grafa(self.dokument.koncModel.opis)
-        self.update_konc_labels(('n/a', 'n/a', 'n/a'))
-        self.update_zero_labels(('n/a', 'n/a', 'n/a'))
-        self.update_span_labels(('n/a', 'n/a', 'n/a'))
 
 
-
-class DownlodadPodatakaWorker(QtCore.QThread):
-    def __init__(self, rest, dokument, parent=None):
-        super(DownlodadPodatakaWorker, self).__init__()
+class DownloadPodatakaWorker(QtCore.QThread):
+    def __init__(self, rest, parent=None):
+        super(DownloadPodatakaWorker, self).__init__()
         self.restRequest = rest
-        self.dokument = dokument
+        self.zero_df = None
+        self.span_df = None
+        self.mjerenja_df = None
 
     def set(self, kanal, od, ndays):
         self.kanal = kanal
@@ -422,21 +420,17 @@ class DownlodadPodatakaWorker(QtCore.QThread):
         self.ndays = ndays
 
     def run(self):
+        self.zero_df = pd.DataFrame()
+        self.span_df = pd.DataFrame()
+        self.mjerenja_df = pd.DataFrame()
         for d in range(1, self.ndays):
             dan = (self.od + timedelta(d)).strftime('%Y-%m-%d')
             mjerenja = self.restRequest.get_sirovi(self.kanal, dan)
             [zero, span] = self.restRequest.get_zero_span(self.kanal, dan, 1)
-            self.dokument.appendMjerenja(mjerenja)
-            self.dokument.appendZero(zero)
-            self.dokument.appendSpan(span)
-
+            self.zero_df = self.zero_df.append(zero)
+            self.span_df = self.zero_df.append(span)
+            self.mjerenja_df = self.zero_df.append(mjerenja)
             self.emit(QtCore.SIGNAL("ucitavanjeProgress(PyQt_PyObject)"), d)
         self.emit(QtCore.SIGNAL("ucitavanjeGotovo"), d)
         # emiriraj update padataka
 
-
-class ProgressBar(QtGui.QProgressBar):
-    def __init__(self, parent=None):
-        super(QtGui.QProgressBar, self).__init__(parent)
-        self.setWindowTitle('Load status:')
-        self.setGeometry(300, 300, 200, 40)

@@ -2,8 +2,6 @@
 import os
 import pickle
 
-import pandas
-
 from app.model import qtmodels
 
 
@@ -20,32 +18,17 @@ class Dokument(object):
         # nested dict mjerenja
         self.programi = []
         # empty tree model programa mjerenja
-        self._treeModelProgramaMjerenja = None
 
         # modeli za prikaz podataka
         self._koncModel = qtmodels.KoncFrameModel()
         self._zeroModel = qtmodels.ZeroSpanFrameModel('zero')
         self._spanModel = qtmodels.ZeroSpanFrameModel('span')
         self._korekcijaModel = qtmodels.KorekcijaFrameModel()
-        self.sirovi = pandas.DataFrame()
-        self.zero = pandas.DataFrame()
-        self.span = pandas.DataFrame()
 
         self.aktivni_kanal = None
         self.vrijeme_od = None
         self.vrijeme_do = None
 
-    def appendMjerenja(self, df):
-        self.sirovi = self.sirovi.append(df)
-        pass
-
-    def appendSpan(self, df):
-        self.span = self.span.append(df)
-        pass
-
-    def appendZero(self, df):
-        self.zero = self.zero.append(df)
-        pass
 
     def spremi_se(self, fajlNejm):
         # TODO funkcionalnost spremanja staviti u zasebni objekt koji onda (de)serijalizira dokument. Ovo je privremeno da pocistim kontroler
@@ -65,11 +48,6 @@ class Dokument(object):
         frejmPodaci.to_csv(podName, sep=';')
         frejmZero.to_csv(zeroName, sep=';')
         frejmSpan.to_csv(spanName, sep=';')
-
-    @property
-    def treeModelProgramaMjerenja(self):
-        """Qt tree model za izbor kanala"""
-        return self._treeModelProgramaMjerenja
 
     @property
     def koncModel(self):
@@ -120,15 +98,3 @@ class Dokument(object):
         self.zeroModel.datafrejm = self.korekcijaModel.primjeni_korekciju_na_frejm(self.zeroModel.datafrejm)
         self.spanModel.datafrejm = self.korekcijaModel.primjeni_korekciju_na_frejm(self.spanModel.datafrejm)
 
-    def postavi_program_mjerenja(self, programi):
-        self.programi = programi
-        drvo = qtmodels.TreeItem(['stanice', None, None, None], parent=None)
-        pomocna_mapa = {}
-        for pm in programi:
-            if pm.postaja.id not in pomocna_mapa:
-                pomocna_mapa[pm.postaja.id] = qtmodels.PostajaItem(pm.postaja, parent=drvo)
-                drvo.appendChild(pomocna_mapa[pm.postaja.id])
-            postaja = pomocna_mapa[pm.postaja.id]
-            postaja.appendChild(qtmodels.ProgramMjerenjaItem(pm, parent=postaja))
-        drvo.sort_children()
-        self._treeModelProgramaMjerenja = qtmodels.ModelDrva(drvo)
