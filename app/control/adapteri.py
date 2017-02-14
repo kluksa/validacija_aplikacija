@@ -117,10 +117,10 @@ class ProgramMjerenjaAdapter:
             if program.komponenta.formula in ['NO', 'NO2', 'NOx']:
                 kljuc = str(program.postaja.id) + ":" + str(program.usporedno)
                 if kljuc not in nox.keys():
-                    nox[kljuc] = dto.ProgramMjerenjaNox(program)
+                    p = dto.ProgramMjerenjaNox(program)
+                    nox[kljuc] = p
+                    rezultat.append(p)
                 nox[kljuc].dodaj_program(program)
             else:
                 rezultat.append(parser.parse(pm))
-        for k, v in nox.items():
-            rezultat.append(v)
         return rezultat

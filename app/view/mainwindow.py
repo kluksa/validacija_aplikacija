@@ -2,6 +2,7 @@
 import logging
 from datetime import timedelta
 
+import pandas as pd
 from PyQt4 import QtGui, QtCore, uic
 from requests.exceptions import RequestException
 
@@ -390,9 +391,23 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
     def ucitavanje_progress(self, n):
         self.progress_bar.setValue(n)
 
+
     def ucitavanje_gotovo(self):
         self.progress_bar.close()
         QtGui.QApplication.restoreOverrideCursor()
+        self.dokument.koncModel.datafrejm = self.dokument.sirovi
+        self.dokument.zeroModel.datafrejm = self.dokument.zero
+        self.dokument.spanModel.datafrejm = self.dokument.span
+        # set clean modela za korekcije u dokument
+        self.dokument.korekcijaModel.datafrejm = pd.DataFrame(columns=['vrijeme', 'A', 'B', 'Sr', 'remove'])
+        self.set_data_models_to_canvas(self.dokument.koncModel,
+                                       self.dokument.zeroModel,
+                                       self.dokument.spanModel)
+        self.update_opis_grafa(self.dokument.koncModel.opis)
+        self.update_konc_labels(('n/a', 'n/a', 'n/a'))
+        self.update_zero_labels(('n/a', 'n/a', 'n/a'))
+        self.update_span_labels(('n/a', 'n/a', 'n/a'))
+
 
 
 class DownlodadPodatakaWorker(QtCore.QThread):

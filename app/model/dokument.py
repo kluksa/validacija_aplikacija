@@ -36,13 +36,16 @@ class Dokument(object):
         self.vrijeme_do = None
 
     def appendMjerenja(self, df):
-        self.sirovi.append(df)
+        self.sirovi = self.sirovi.append(df)
+        pass
 
     def appendSpan(self, df):
-        self.span.append(df)
+        self.span = self.span.append(df)
+        pass
 
     def appendZero(self, df):
-        self.zero.append(df)
+        self.zero = self.zero.append(df)
+        pass
 
     def spremi_se(self, fajlNejm):
         # TODO funkcionalnost spremanja staviti u zasebni objekt koji onda (de)serijalizira dokument. Ovo je privremeno da pocistim kontroler
@@ -118,15 +121,6 @@ class Dokument(object):
         self.spanModel.datafrejm = self.korekcijaModel.primjeni_korekciju_na_frejm(self.spanModel.datafrejm)
 
     def postavi_program_mjerenja(self, programi):
-        # sredjivanje povezanih kanala (NOx grupa i PM grupa)
- #       for kanal in self._kanali:
- #           pomocni = self._get_povezane_kanale(kanal)
- #           for i in pomocni:
- #               self._kanali[kanal]['povezaniKanali'].append(i)
- #           # sortiraj povezane kanale, predak je bitan zbog radio buttona
- #           lista = sorted(self._kanali[kanal]['povezaniKanali'])
- #           self._kanali[kanal]['povezaniKanali'] = lista
-
         self.programi = programi
         drvo = qtmodels.TreeItem(['stanice', None, None, None], parent=None)
         pomocna_mapa = {}
@@ -138,34 +132,3 @@ class Dokument(object):
             postaja.appendChild(qtmodels.ProgramMjerenjaItem(pm, parent=postaja))
         drvo.sort_children()
         self._treeModelProgramaMjerenja = qtmodels.ModelDrva(drvo)
-
-    def _get_povezane_kanale(self, kanal):
-        """
-        Za zadani kanal, ako je formula kanala unutar nekog od setova,
-        vrati sve druge kanale na istoj postaji koji takodjer pripadaju istom
-        setu (NOx i PM).
-
-        npr. ako je izabrani kanal Desinic NO, funkcija vraca id mjerenja za
-        NO2 i NOx sa Desinica (ako postoje)
-        """
-        setovi = [('NOx', 'NO', 'NO2'), ('PM10', 'PM1', 'PM2.5')]
-        output = set()
-        postaja = self._kanali[kanal]['postajaId']
-        formula = self._kanali[kanal]['komponentaFormula']
-        usporednoMjerenje = self._kanali[kanal]['usporednoMjerenje']
-        ciljaniSet = None
-        for kombinacija in setovi:
-            if formula in kombinacija:
-                ciljaniSet = kombinacija
-                break
-        # ako kanal ne pripada setu povezanih...
-        if ciljaniSet is None:
-            return output
-
-        for pmid in self._kanali:
-            if self._kanali[pmid]['postajaId'] == postaja and pmid != kanal:
-                if self._kanali[pmid]['komponentaFormula'] in ciljaniSet:
-                    # usporedno mjerenje se mora poklapati...
-                    if self._kanali[pmid]['usporednoMjerenje'] == usporednoMjerenje:
-                        output.add(pmid)
-        return output
