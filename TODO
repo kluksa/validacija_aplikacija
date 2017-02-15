@@ -1,14 +1,26 @@
+TODO proizvodnja dnevnih (iz valjanih satnih, ako je više od 16 podataka u danu, satni je valjan, ako je > 12 onda ne smije biti više od 6 uzastopnih nedostajućih podataka)
+
+TODO Y zoom
+
+TODO shift left mouse - pan
+
+TODO control left mouse - rectangle zooom
+
+TODO shift+control left mouse - selekcija za valjan/nevaljan
+
+TODO komboinirani kanal NO NO2 NOx; NO2 se računa iz NOx-NO, NO i NOx kanali imaju svaki svoje koeficijente NO2 nema
+
 - PM10 Slavonski Brod 2, ne može primijeniti korekciju, vjerojatno je problem što nema zero-a i spana : DONE
 
-- spremanje trenutnog stanja (rada)
+- spremanje trenutnog stanja (rada) : DONE
 
 - ucitavanje: ako vremenski interval nije dozvoljen ne zatvarati dijalog nego tražiti ponovni unos vremena : DONE
 
 - rectangle zoom ne radi ako je pocetak prije prvog podatka : DONE
 
-- kod primjene korekcije ne mijenjati zoom
+- kod primjene korekcije ne mijenjati zoom : DONE
 
-- uz delete gumb dodati još i gumb na kalkulator A i B. Otvara se popup i traži se unos:
+- uz delete gumb dodati još i gumb na kalkulator A i B. Otvara se popup i traži se unos: : DONE
 s0, z0, s1, z1, A i B. Defaultne vrijednosti:
 s0 = s1 = A = 1.
 z0 = z1 = B = 0.
@@ -21,17 +33,7 @@ calcab<-function(s0=s0,z0=z0,s1=s1,z1=z1,ab=c(1,0)){
   c(aa,bb)
 }
 
-- proizvodnja satnih (podatak valjan ako je obuhvat > 75%, minutni nevaljani ako su proglašeni nevaljanima u aplikaciji ili ako im je status >= 1024). Ako podatak nedostaje dobiva status 32768)
-
-- proizvodnja dnevnih (iz valjanih satnih, ako je više od 16 podataka u danu, satni je valjan, ako je > 12 onda ne smije biti više od 6 uzastopnih nedostajućih podataka)
-
-- Y zoom
-
-- shift left mouse - pan
-
-- control left mouse - rectangle zooom
-
-- shift+control left mouse - selekcija za valjan/nevaljan
+- proizvodnja satnih (podatak valjan ako je obuhvat > 75%, minutni nevaljani ako su proglašeni nevaljanima u aplikaciji ili ako im je status >= 1024). Ako podatak nedostaje dobiva status 32768) : DONE (sort of)
 
 - ucitavanje: zapamtiti od - do od prethodnog kanala :DONE
 

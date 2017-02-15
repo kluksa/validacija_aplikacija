@@ -356,6 +356,7 @@ class Kanvas(FigureCanvas):
         self.isKoncGrafActive = True
         self.isZeroGrafActive = False
         self.isSpanGrafActive = False
+        self._polyBin = [] # bin sa nacrtanim spanovima (losi zero i span poligoni)
         #elementi za konc graf
         self.koncLDL = None
         self.koncGood = None
@@ -800,8 +801,9 @@ class Kanvas(FigureCanvas):
 
         ok = frejmKonc[frejmKonc['flag']>0]
         bad = frejmKonc[frejmKonc['flag']<0]
-        korekcijaOk = frejmKonc[frejmKonc['korekcija']>=frejmKonc['LDL']]
-        korekcijaBad = frejmKonc[frejmKonc['korekcija']<frejmKonc['LDL']]
+        #losa korekcija za los flag takodjer
+        korekcijaOk = frejmKonc[(frejmKonc['korekcija']>=frejmKonc['LDL'])&(frejmKonc['flag']>=0)]
+        korekcijaBad = frejmKonc[(frejmKonc['korekcija']<frejmKonc['LDL'])|(frejmKonc['flag']<0)]
         #count korektiranih manjih od 0 i manjih od ldl
         korektirani_manji_od_nule = frejmKonc[frejmKonc['korekcija'] < 0].count()['korekcija']
         korektirani_manji_od_LDL = korekcijaBad.count()['korekcija']
@@ -928,13 +930,30 @@ class Kanvas(FigureCanvas):
         badRasponiZero = self.zeroModel.rasponi
         badRasponiSpan = self.spanModel.rasponi
 
+        #clear all raspone
+        for poly in self._polyBin:
+            try:
+                poly.remove()
+            except Exception:
+                pass
+        self._polyBin = []
+
         for xmin, xmax in badRasponiZero:
-            self.axesZ.axvspan(xmin, xmax, facecolor='red', alpha=0.2)
-            self.axesC.axvspan(xmin, xmax, facecolor='red', alpha=0.2)
+            #returns matplotlib.patches.Polygon, grab instance and remove... by running .remove()
+            self._polyBin.append(self.axesZ.axvspan(xmin, xmax, facecolor='red', alpha=0.2))
+            self._polyBin.append(self.axesC.axvspan(xmin, xmax, facecolor='red', alpha=0.2))
 
         for xmin, xmax in badRasponiSpan:
-            self.axesS.axvspan(xmin, xmax, facecolor='red', alpha=0.2)
-            self.axesC.axvspan(xmin, xmax, facecolor='red', alpha=0.2)
+            self._polyBin.append(self.axesS.axvspan(xmin, xmax, facecolor='red', alpha=0.2))
+            self._polyBin.append(self.axesC.axvspan(xmin, xmax, facecolor='red', alpha=0.2))
+
+    def get_current_x_zoom(self):
+        return self.axesC.get_xlim()
+
+    def set_current_x_zoom(self, x):
+        self.axesC.set_xlim(x)
+        self.autoscale_y_os()
+        self.draw()
 
 
     def crtaj(self, rend=True):
@@ -1215,6 +1234,7 @@ class Kanvas(FigureCanvas):
         self.axesC.clear()
         self.isDrawn = False
         self.crtaj_koncentracija()
+        self.sjencaj_lose_zero_span()
         #restore view
         self.axesC.set_xlim(curzumx)
         self.axesC.set_ylim(curzumy)
@@ -1268,6 +1288,12 @@ class GrafDisplayWidget(QtGui.QWidget):
 
     def emit_korekcija_selected(self, xpoint):
         self.emit(QtCore.SIGNAL('korekcija_table_select_podatak(PyQt_PyObject)'), xpoint)
+
+    def get_xzoom_range(self):
+        return self.figure_canvas.get_current_x_zoom()
+
+    def set_xzoom_range(self, x):
+        self.figure_canvas.set_current_x_zoom(x)
 
     def crtaj(self, rend=True):
         self.figure_canvas.crtaj(rend=rend)

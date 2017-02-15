@@ -38,6 +38,27 @@
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="buttonExportAgregirane">
+        <property name="text">
+         <string>Export agregirane</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="buttonSerialize">
+        <property name="text">
+         <string>Save</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="buttonUnserialize">
+        <property name="text">
+         <string>Load</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QLabel" name="labelOpisGrafa">
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">

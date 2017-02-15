@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-import datetime
 import json
 import logging
-
+import requests
+import datetime
 import numpy as np
 import pandas as pd
-import requests
+from requests.auth import HTTPBasicAuth
+import xml.etree.ElementTree as ET
 from PyQt4 import QtGui
 from requests.auth import HTTPBasicAuth
 
@@ -20,12 +21,8 @@ class DataReaderAndCombiner(object):
     reader : RestZahtjev objekt
     statusi : mapa {statusBit : status}
     """
-
     def __init__(self, reader):
         self.citac = reader
-        # lookup tablica za opis statusa {broj statusa[int] : string asociranih flagova [str]}
-        self._statusLookup = {}
-        self._status_bits = {}
 
     def get_data(self, kanal, od, do):
         """
@@ -84,18 +81,36 @@ class DataReaderAndCombiner(object):
                 kraj = do + datetime.timedelta(1)
 
             fullraspon = pd.date_range(start=start, end=kraj, freq=frek)
-            # konverzija status int to string za koncentracijski frejm
-            statstr = [self._status_int_to_string(i) for i in master_konc_frm.loc[:, 'status']]
-            master_konc_frm.loc[:, 'statusString'] = statstr
-            # reindex koncentracijski data zbog rupa u podacima (ako nedostaju rubni podaci)
-            master_konc_frm = master_konc_frm.reindex(fullraspon)
-            # output frejmove
-            return master_konc_frm, master_zero_frm, master_span_frm
+            #reindex koncentracijski data zbog rupa u podacima (ako nedostaju rubni podaci)
+            masterKoncFrejm = masterKoncFrejm.reindex(fullraspon)
+            #sredi satuse missing podataka
+            masterKoncFrejm = self.sredi_missing_podatke(masterKoncFrejm)
+            #output frejmove
+            return masterKoncFrejm, masterZeroFrejm, masterSpanFrejm
         except Exception as err:
             logging.error(str(err), exc_info=True)
             if hasattr(self, 'progress'):
                 self.progress.close()
             raise Exception('Problem kod ucitavanja podataka') from err
+
+    def sredi_missing_podatke(self, frejm):
+        #indeks svi konc nan
+        i0 = np.isnan(frejm['koncentracija'])
+        #indeks konc i status su nan
+        i1 = (np.isnan(frejm['koncentracija']))&(np.isnan(frejm['status']))
+        #indeks konc je nan, status nije
+        i2 = (np.isnan(frejm['koncentracija']))&([not m for m in np.isnan(frejm['status'])])
+
+        frejm.loc[i1, 'status'] = 32768
+        frejm.loc[i2, 'status'] = [self._bor_value(m, 32768) for m in frejm.loc[i2, 'status']]
+        frejm.loc[i0, 'flag'] = -1
+        return frejm
+
+    def _bor_value(self, status, val):
+        try:
+            return int(status) | int(val)
+        except Exception:
+            return 32768
 
     def _check_bit(self, broj, bit_position):
         """
