@@ -397,6 +397,7 @@ class Kanvas(FigureCanvas):
     def emit_graf_modified(self, mapa):
         self.emit(QtCore.SIGNAL('graf_is_modified(PyQt_PyObject)'), mapa)
 
+    # TODO Koji je smisao ovoga?????
     def emit_point_selected(self, red):
         self.emit(QtCore.SIGNAL('table_select_podatak(PyQt_PyObject)'), red)
 
@@ -581,6 +582,7 @@ class Kanvas(FigureCanvas):
         #reindex
         ok = ok.reindex(indeks)
         bad = bad.reindex(indeks)
+        korekcijaOk = korekcijaOk.reindex(indeks)
         korekcijaOk = korekcijaOk.reindex(indeks)
         korekcijaBad = korekcijaBad.reindex(indeks)
         #samo stupci od interesa

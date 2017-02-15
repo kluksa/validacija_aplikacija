@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 
-class Agregator(object):
+class SatniAgregator(object):
     def __init__(self):
         pass
 
@@ -29,7 +29,7 @@ class Agregator(object):
         else:
             return False
 
-    def satno_agregiraj_frejm(self, frejm, broj_u_satu):
+    def agregiraj(self, frejm, broj_u_satu):
         """
         satna agregacija frejma
 

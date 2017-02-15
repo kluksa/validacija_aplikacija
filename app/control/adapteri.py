@@ -78,9 +78,10 @@ class PodatakAdapter(Adapter):
         Funkcija je zaduzena da konvertira ulazni json string (x) u pandas frejm
         """
         #        try:
-        df = pd.read_json(ulaz, orient='records', convert_dates=['vrijeme'])
+        df = pd.read_json(ulaz, orient='records')  # , convert_dates=['vrijeme'])
         if df.empty:
             return pd.DataFrame()
+        df['vrijeme'] = pd.to_datetime(df['vrijeme'], unit='ms')
         self._provjeri(df, self.obavezni_json_stupci)
         df = df.set_index(df['vrijeme'])
         df.drop(['vrijeme', 'nivoValidacije'], inplace=True, axis=1)

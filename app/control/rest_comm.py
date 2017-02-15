@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
+import datetime
 import json
 import logging
-import requests
-import datetime
+import re
+
 import numpy as np
 import pandas as pd
-from requests.auth import HTTPBasicAuth
-import xml.etree.ElementTree as ET
+import requests
 from PyQt4 import QtGui
 from requests.auth import HTTPBasicAuth
 
 from app.control.adapteri import PodatakAdapter, ProgramMjerenjaAdapter, ZeroSpanAdapter
 
 
+# TODO ova klasa mora nestati
 class DataReaderAndCombiner(object):
     """
     klasa za read podataka sa resta. Cita dan po dan, updatea progress bar i spaja dnevne
@@ -178,10 +179,11 @@ class MockZahtjev():
 
     def get_sirovi(self, program_mjerenja_id, datum):
         dd = datum[-2:]
-        n = 1 + int(datum[-2:]) % 10
+        n = 1 + (int(datum[-2:]) - 6) % 10
         fname = "/home/kraljevic/PycharmProjects/validacija_aplikacija/test_resources/p" + str(n) + ".json"
         with open (fname, "r") as myfile:
             data = myfile.readline()
+            re.sub("", "", data)
         frejm = self.podatak_adapter.adaptiraj(data)
         return frejm
 
@@ -322,3 +324,4 @@ class RESTZahtjev(object):
         msg = 'status={0} , reason={1}, url={2}'.format(str(r.status_code), str(r.reason), url)
         assert r.ok is True, msg
         return True
+
