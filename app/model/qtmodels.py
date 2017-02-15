@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-import logging
 import copy
+import logging
+
 import numpy as np
 import pandas as pd
 from PyQt4 import QtGui, QtCore
@@ -54,6 +55,7 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
 
     @property
     def datafrejm(self):
+        # TODO ZASTO kopirati????
         return self._dataFrejm.copy()
 
     @datafrejm.setter
@@ -95,6 +97,7 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
 
     @property
     def kanalMeta(self):
+        # TODO koji K???? Zašto pobogu deep copy?
         return copy.deepcopy(self._kanalMeta)
 
     @kanalMeta.setter
@@ -439,6 +442,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
 
     @property
     def datafrejm(self):
+        # TODO zašto kopija????
         return self._dataFrejm.copy()
 
     @datafrejm.setter
@@ -465,6 +469,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         self.emit(QtCore.SIGNAL('update_persistent_delegate'))
 
     def calc_ldl_values(self, frejm):
+        # TODO zasto ovdje??? LDL bi se trebao racunati u dokumentu. Ovo je samo GUI kontroler
         """dohvati ldl vrijednosti..."""
         sr = frejm['Sr']
         A = frejm['A']
@@ -473,6 +478,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         return frejm
 
     def primjeni_korekciju_na_frejm(self, frejm):
+        # TODO zasto ovdje???? Ovo bi trebao raditi dokument. Ovo je najobicnija kontrola od tablice
         """primjena korekcije na zadani frejm..."""
         # pripremi frejm korekcije za rad
         df = self._dataFrejm.copy()
@@ -483,8 +489,6 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         df.dropna(axis=0, inplace=True)
         df.sort_values(['vrijeme'], inplace=True)
         df = df.set_index(df['vrijeme'])
-        # drop stupce koji su pomocni
-        df.drop(['remove', 'vrijeme'], axis=1, inplace=True)
         #drop stupce koji su pomocni
         df.drop(['remove', 'calc', 'vrijeme'], axis=1, inplace=True)
         df['A'] = df['A'].astype(float)
