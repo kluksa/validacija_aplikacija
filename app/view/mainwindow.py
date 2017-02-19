@@ -36,7 +36,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
 
         # dependency injection kroz konstruktor je puno bolji pattern od slanja konfig objekta
 
-        if True:
+        if False:
             self.restRequest = MockZahtjev()
         else:
             self.restRequest = RESTZahtjev(config.rest.program_mjerenja_url,
@@ -274,7 +274,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         #              self.ucitavanje_podataka_sa_resta)
 
         # navigacija graf-tablica sa podacima
-        self.connect(self.kanvas,
+        self.connect(self.kanvas.figure_canvas,
                      QtCore.SIGNAL('table_select_podatak(PyQt_PyObject)'),
                      self.zoom_to_model_timestamp)
 

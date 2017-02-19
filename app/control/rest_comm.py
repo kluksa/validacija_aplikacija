@@ -222,12 +222,12 @@ class RESTZahtjev(object):
     def logmeout(self):
         self.user, self.pswd = ('', '')
 
-    def get_broj_u_satu(self, program_mjerenja_id):
+    def get_broj_u_satu(self, program_mjerenja):
         """
         Metoda dohvaca minimalni broj podataka u satu za neki programMjerenjaID.
         Output je integer
         """
-        url = self.program_url + '/podaci/' + str(program_mjerenja_id)
+        url = self.program_url + '/podaci/' + str(program_mjerenja.id)
         head = {"accept": "application/json"}
         out = json.loads(self._get_request(url, '', head))
         return int(out['brojUSatu'])
@@ -246,19 +246,19 @@ class RESTZahtjev(object):
             rezultat[x[i]['i']] = x[i]['s']
         return rezultat
 
-    def get_sirovi(self, program_mjerenja_id, datum):
+    def get_sirovi(self, program_mjerenja, datum):
         """
         Za zadani program mjerenja (int) i datum (string, formata YYYY-MM-DD)
         dohvati sirove (minutne) podatke sa REST servisa.
         Output funkcije je json string.
         """
-        url = self.sirovi_podaci_url + '/' + str(program_mjerenja_id) + '/' + datum
+        url = self.sirovi_podaci_url + '/' + str(program_mjerenja.id) + '/' + datum
         payload = {"id": "getPodaci", "name": "GET", "broj_dana": 1}
         head = {"accept": "application/json"}
         frejm = self.podatak_adapter.adaptiraj(self._get_request(url, payload, head))
         return frejm
 
-    def get_zero_span(self, program_mjerenja_id, datum, kolicina):
+    def get_zero_span(self, program_mjerenja, datum, kolicina):
         """
         Dohvati zero-span vrijednosti
         ulazni parametri su:
@@ -270,7 +270,7 @@ class RESTZahtjev(object):
         doslo do problema prilikom rada.
         """
         # dat = datum.strftime('%Y-%m-%d')
-        url = self.zero_span_podaci_url + '/' + str(program_mjerenja_id) + '/' + datum
+        url = self.zero_span_podaci_url + '/' + str(program_mjerenja.id) + '/' + datum
         payload = {"id": "getZeroSpanLista", "name": "GET", "broj_dana": int(kolicina)}
         head = {"accept": "application/json"}
         zero, span = self.zs_adapter.adaptiraj(self._get_request(url, payload, head))
@@ -300,7 +300,7 @@ class RESTZahtjev(object):
         assert r.ok is True, msg
         return r.text
 
-    def upload_json_minutnih(self, program_mjerenja_id=None, jstring=None, datum=None):
+    def upload_json_minutnih(self, program_mjerenja=None, jstring=None, datum=None):
         """
         Spremanje minutnih podataka na REST servis.
         ulazni parametrni su:
@@ -308,7 +308,7 @@ class RESTZahtjev(object):
         -jstring : json string minutnih podataka koji se treba uploadati
         -datum : datum
         """
-        url = self.sirovi_podaci_url + '/' + str(program_mjerenja_id) + '/' + datum
+        url = self.sirovi_podaci_url + '/' + str(program_mjerenja.id) + '/' + datum
         payload = {"id": "putPodaci", "name": "PUT"}
         headers = {'Content-type': 'application/json'}
         if not isinstance(jstring, str):
