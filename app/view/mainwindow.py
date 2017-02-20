@@ -58,7 +58,10 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.sredi_delegate_za_tablicu()
 
         self.program_mjerenja_dlg = kanal_dijalog.KanalDijalog()
+        self.thread = QtCore.QThread()
         self.download_podataka_worker = DownloadPodatakaWorker(self.restRequest)
+        self.download_podataka_worker.moveToThread(self.thread)
+        self.thread.started.connect(self.download_podataka_worker.run)
 
         # custom persistent delegates...
         # TODO! triple click fail... treba srediti persistent editor na cijeli stupac
@@ -100,7 +103,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
                                                          "export korekcije")
             if fajlNejm:
                 if not fajlNejm.endswith('.csv'):
-                    fajlNejm = fajlNejm + '.csv'
+                    fajlNejm += '.csv'
                 # os... sastavi imena fileova
                 folder, name = os.path.split(fajlNejm)
                 podName = "podaci_" + name
@@ -137,9 +140,9 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
                                                          "export satno agregiranih")
             if fajlNejm:
                 if not fajlNejm.endswith('.csv'):
-                    fajlNejm = fajlNejm + '.csv'
+                    fajlNejm += '.csv'
                 frejm = self.dokument.koncModel.datafrejm
-                broj_u_satu = self.restRequest.get_broj_u_satu(self.dokument.aktivniKanal)
+                broj_u_satu = self.restRequest.get_broj_u_satu(self.dokument.aktivni_kanal)
                 output = self.satniAgregator.agregiraj(frejm, broj_u_satu)
                 QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
                 output.to_csv(fajlNejm)
@@ -162,7 +165,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
                                                          "Spremi podatke")
             if fajlNejm:
                 if not fajlNejm.endswith('.dat'):
-                    fajlNejm = fajlNejm + '.dat'
+                    fajlNejm += '.dat'
                 # spinning cursor...
                 QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
 
@@ -299,10 +302,6 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
                      QtCore.SIGNAL('export_satno_agregiranih'),
                      self.export_satno_agregiranih)
 
-
-
-
-
         self.connect(self.kanvas,
                      QtCore.SIGNAL('graf_is_modified(PyQt_PyObject)'),
                      self.update_labele_obuhvata)
@@ -319,15 +318,14 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
                      QtCore.SIGNAL('update_span_label(PyQt_PyObject)'),
                      self.update_span_labels)
 
-
         self.connect(self.dokument.korekcijaModel,
                      QtCore.SIGNAL('update_persistent_delegate'),
                      self.sredi_delegate_za_tablicu)
-
-        self.connect(self.download_podataka_worker,
-                     QtCore.SIGNAL('ucitavanjeProgress(PyQt_PyObject)'), self.ucitavanje_progress)
-        self.connect(self.download_podataka_worker,
-                     QtCore.SIGNAL('ucitavanjeGotovo'), self.ucitavanje_gotovo)
+        self.download_podataka_worker.gotovo_signal.connect(self.ucitavanje_gotovo)
+        self.download_podataka_worker.progress_signal.connect(self.ucitavanje_progress)
+        self.download_podataka_worker.greska_signal.connect(self.ucitavanje_greska)
+        self.download_podataka_worker.greska_signal.connect(self.thread.quit)
+        self.download_podataka_worker.gotovo_signal.connect(self.thread.quit)
 
     def update_opis_grafa(self, opis):
         self.labelOpisGrafa.setText(opis)
@@ -502,18 +500,30 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
         self.download_podataka_worker.set(self.dokument.aktivni_kanal, self.dokument.vrijeme_od,
                                           self.dokument.vrijeme_do)
+
+        self.thread.start()
+
         self.progress_bar.show()
-        self.download_podataka_worker.start()
+        # self.download_podataka_worker.start()
 
     def ucitavanje_progress(self, n):
         self.progress_bar.setValue(n)
 
-    def ucitavanje_gotovo(self):
+    def ucitavanje_greska(self, err):
+        QtGui.QMessageBox.warning(self, 'Pogreška',
+                                  'Učitavanje podataka nije uspjelo ' + str(err))
+        self.progress_bar.close()
+
+    def ucitavanje_u_tijeku(self):
+        QtGui.QMessageBox.warning(self, 'Učitavanje u tijeku',
+                                  'Ne mogu učitati nove podatke dok ne zavši već započeto učitavanje')
+
+    def ucitavanje_gotovo(self, result):
         self.progress_bar.close()
         QtGui.QApplication.restoreOverrideCursor()
-        self.dokument.koncModel.datafrejm = self.download_podataka_worker.mjerenja_df
-        self.dokument.zeroModel.datafrejm = self.download_podataka_worker.zero_df
-        self.dokument.spanModel.datafrejm = self.download_podataka_worker.span_df
+        self.dokument.koncModel.datafrejm = result['mjerenja']
+        self.dokument.zeroModel.datafrejm = result['zero']
+        self.dokument.spanModel.datafrejm = result['span']
         # set clean modela za korekcije u dokument
         self.dokument.korekcijaModel.datafrejm = pd.DataFrame(columns=['vrijeme', 'A', 'B', 'Sr', 'remove', 'calc'])
         self.set_data_models_to_canvas(self.dokument.koncModel,
@@ -521,18 +531,15 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
                                        self.dokument.spanModel)
 
 
-class DownloadPodatakaWorker(QtCore.QThread):
-    ucitavanje_gotovo_signal = QtCore.SIGNAL("ucitavanjeGotovo")
-    ucitavanje_progress_signal = QtCore.SIGNAL("ucitavanjeProgress(PyQt_PyObject)")
-    ucitavanje_u_tijeku_signal = QtCore.SIGNAL("ucitavanjeUTijeku")
-    ucitavanje_neuspjelo_signal = QtCore.SIGNAL("ucitavanjeNeuspjelo")
+class DownloadPodatakaWorker(QtCore.QObject):
+    greska_signal = QtCore.pyqtSignal(Exception)
+    progress_signal = QtCore.pyqtSignal(int)
+    gotovo_signal = QtCore.pyqtSignal(dict)
+    u_tijeku_signal = QtCore.pyqtSignal()
 
     def __init__(self, rest, parent=None):
         super(self.__class__, self).__init__()
         self.restRequest = rest
-        self.zero_df = None
-        self.span_df = None
-        self.mjerenja_df = None
         self.aktivan = False
 
     def set(self, kanal, od, do):
@@ -543,23 +550,25 @@ class DownloadPodatakaWorker(QtCore.QThread):
 
     def run(self):
         if self.aktivan:
-            self.emit(DownloadPodatakaWorker.ucitavanje_u_tijeku_signal)
+            self.u_tijeku_signal.emit()
             return
+
         try:
+            rezultat = {}
             self.aktivan = True
             self.status_bits = self.restRequest.get_status_map()
             broj_u_satu = self.restRequest.get_broj_u_satu(self.kanal)
-            self.zero_df = pd.DataFrame()
-            self.span_df = pd.DataFrame()
-            self.mjerenja_df = pd.DataFrame()
+            zero_df = pd.DataFrame()
+            span_df = pd.DataFrame()
+            mjerenja_df = pd.DataFrame()
             for d in range(0, self.ndays):
                 dan = (self.od + timedelta(d)).strftime('%Y-%m-%d')
                 mjerenja = self.restRequest.get_sirovi(self.kanal, dan)
                 [zero, span] = self.restRequest.get_zero_span(self.kanal, dan, 1)
-                self.zero_df = self.zero_df.append(zero)
-                self.span_df = self.zero_df.append(span)
-                self.mjerenja_df = self.mjerenja_df.append(mjerenja)
-                self.emit(DownloadPodatakaWorker.ucitavanje_progress_signal, int(100 * d / self.ndays))
+                zero_df = zero_df.append(zero)
+                span_df = span_df.append(span)
+                mjerenja_df = mjerenja_df.append(mjerenja)
+                self.progress_signal.emit(int(100 * d / self.ndays))
 
             if 3600 % broj_u_satu != 0:
                 logging.error("Frekvencija mjerenja nije cijeli broj sekundi", exc_info=True)
@@ -568,13 +577,15 @@ class DownloadPodatakaWorker(QtCore.QThread):
 
             fullraspon = pd.date_range(start=self.od, end=self.do, freq=frek)
 
-            self.mjerenja_df = self.mjerenja_df.reindex(fullraspon)
-            self.mjerenja_df = self.sredi_missing_podatke(self.mjerenja_df)
-
-            self.emit(DownloadPodatakaWorker.ucitavanje_gotovo_signal)
+            mjerenja_df = mjerenja_df.reindex(fullraspon)
+            mjerenja_df = self.sredi_missing_podatke(mjerenja_df)
+            rezultat['mjerenja'] = mjerenja_df
+            rezultat['zero'] = zero_df
+            rezultat['span'] = span_df
+            self.gotovo_signal.emit(rezultat)
         except Exception as err:
             logging.error(str(err), exc_info=True)
-            self.emit(DownloadPodatakaWorker.ucitavanje_neuspjelo_signal)
+            self.greska_signal.emit(err)
         finally:
             self.aktivan = False
 
@@ -598,6 +609,42 @@ class DownloadPodatakaWorker(QtCore.QThread):
             return int(status) | int(val)
         except Exception:
             return 32768
+
+    def _check_bit(self, broj, bit_position):
+        """
+        Pomocna funkcija za testiranje statusa
+        Napravi temporary integer koji ima samo jedan bit vrijednosti 1 na poziciji
+        bit_position. Napravi binary and takvog broja i ulaznog broja.
+        Ako oba broja imaju bit 1 na istoj poziciji vrati True, inace vrati False.
+        """
+        if bit_position is not None:
+            temp = 1 << int(bit_position)  # left shift bit za neki broj pozicija
+            if int(broj) & temp > 0:  # binary and izmjedju ulaznog broja i testnog broja
+                return True
+            else:
+                return False
+
+    def _check_status_flags(self, broj):
+        """
+        provjeri stauts integera broj dekodirajuci ga sa hash tablicom
+        {bit_pozicija:opisni string}. Vrati string opisa.
+        """
+        flaglist = []
+        for key, value in self._status_bits.items():
+            if self._check_bit(broj, key):
+                flaglist.append(value)
+        opis = ",".join(flaglist)
+        return opis
+
+    def _status_int_to_string(self, sint):
+        if np.isnan(sint):
+            return 'Status nije definiran'
+        sint = int(sint)
+        rez = self._statusLookup.get(sint, None)  # see if value exists
+        if rez is None:
+            rez = self._check_status_flags(sint)  # calculate
+            self._statusLookup[sint] = rez  # store value for future lookup
+        return rez
 
 
 class NotIntegerFreq(Exception):

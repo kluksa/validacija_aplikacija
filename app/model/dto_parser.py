@@ -21,12 +21,6 @@ class DTOParser:
         else:
             raise NotImplementedError
 
-    def parseJson(self, js_str):
-        raise NotImplementedError
-
-    def parseXML(self, xml_str):
-        raise NotImplementedError
-
     def __init__(self, vrsta):
         parseri = [self.parseJson, self.parseXML]
         self.vrsta = vrsta

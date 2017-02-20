@@ -14,6 +14,7 @@ class Dokument(object):
     - Stablo sa programom je model vezan uz kanal_dijalog, dakle nije mu mjesto u dokumentu
     - od, do, aktivni program mogu biti ovdje, a mogu biti i kanal_dijalog-u
     """
+
     def __init__(self):
         # nested dict mjerenja
         self.programi = []
@@ -28,7 +29,6 @@ class Dokument(object):
         self.aktivni_kanal = None
         self.vrijeme_od = None
         self.vrijeme_do = None
-
 
     def spremi_se(self, fajlNejm):
         # TODO funkcionalnost spremanja staviti u zasebni objekt koji onda (de)serijalizira dokument. Ovo je privremeno da pocistim kontroler
@@ -97,4 +97,3 @@ class Dokument(object):
         self.koncModel.datafrejm = self.korekcijaModel.primjeni_korekciju_na_frejm(self.koncModel.datafrejm)
         self.zeroModel.datafrejm = self.korekcijaModel.primjeni_korekciju_na_frejm(self.zeroModel.datafrejm)
         self.spanModel.datafrejm = self.korekcijaModel.primjeni_korekciju_na_frejm(self.spanModel.datafrejm)
-

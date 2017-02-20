@@ -2,8 +2,11 @@
 from PyQt4 import uic
 
 BASE_LOGIN_AUTH, FORM_LOGIN_AUTH = uic.loadUiType('./app/view/ui_files/auth_login.ui')
+
+
 class DijalogLoginAuth(BASE_LOGIN_AUTH, FORM_LOGIN_AUTH):
     """Dijalog za login, unos username i passworda"""
+
     def __init__(self, parent=None):
         super(BASE_LOGIN_AUTH, self).__init__(parent)
         self.setupUi(self)

@@ -17,7 +17,6 @@ self._data --> kontenjer koji sadrzi neke podatke (npr, lista, dict...)
 """
 
 
-
 ################################################################################
 ################################################################################
 class KoncFrameModel(QtCore.QAbstractTableModel):
@@ -49,8 +48,8 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
         self._status_bits = x
 
     def sredi_status_stringove(self, frejm):
-        statstr = [self._statusInt_to_statusString(i) for i in frejm.loc[:,'status']]
-        frejm.loc[:,'statusString'] = statstr
+        statstr = [self._statusInt_to_statusString(i) for i in frejm.loc[:, 'status']]
+        frejm.loc[:, 'statusString'] = statstr
         return frejm
 
     @property
@@ -61,15 +60,17 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
     @datafrejm.setter
     def datafrejm(self, x):
         if isinstance(x, pd.core.frame.DataFrame):
-            #TODO!
+            # TODO!
             self._dataFrejm = x[self._expectedCols]  # reodrer / crop columns
             indeksKorekcijaIspodLDL = self._dataFrejm['korekcija'] < self._dataFrejm['LDL']
             indeksKorekcijaIznadLDL = self._dataFrejm['korekcija'] >= self._dataFrejm['LDL']
-            self._dataFrejm.loc[indeksKorekcijaIspodLDL, 'status'] = [(int(i) | 2048) for i in self._dataFrejm.loc[indeksKorekcijaIspodLDL, 'status']]
-            self._dataFrejm.loc[indeksKorekcijaIznadLDL, 'status'] = [(int(i) & (~2048)) for i in self._dataFrejm.loc[indeksKorekcijaIznadLDL, 'status']]
-            #TODO! extra flag ako ispod ldl
+            self._dataFrejm.loc[indeksKorekcijaIspodLDL, 'status'] = [(int(i) | 2048) for i in self._dataFrejm.loc[
+                indeksKorekcijaIspodLDL, 'status']]
+            self._dataFrejm.loc[indeksKorekcijaIznadLDL, 'status'] = [(int(i) & (~2048)) for i in self._dataFrejm.loc[
+                indeksKorekcijaIznadLDL, 'status']]
+            # TODO! extra flag ako ispod ldl
             self._dataFrejm.loc[indeksKorekcijaIspodLDL, 'flag'] = -1
-            #sredi status string
+            # sredi status string
             self._dataFrejm = self.sredi_status_stringove(self._dataFrejm)
             self.layoutChanged.emit()
         else:
@@ -176,7 +177,7 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
         else:
             self._dataFrejm.loc[od:do, 'status'] = [(int(i) & (~1024)) for i in self._dataFrejm.loc[od:do, 'status']]
 
-        #TODO! LDL se ne smije proglasiti ok... nikad
+        # TODO! LDL se ne smije proglasiti ok... nikad
         ldlmask = [self._check_for_ldl(i) for i in self._dataFrejm.loc[:, 'status']]
         self._dataFrejm.loc[ldlmask, 'flag'] = -1
 
@@ -184,7 +185,7 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
         self.layoutChanged.emit()
 
     def _check_for_ldl(self, x):
-        #TODO! helper funkcija... mora na bolji nacin
+        # TODO! helper funkcija... mora na bolji nacin
         x = int(x)
         if x | 2048 == x:
             return True
@@ -243,8 +244,8 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
         Ako oba broja imaju bit 1 na istoj poziciji vrati True, inace vrati False.
         """
         if bit_position != None:
-            temp = 1 << int(bit_position) #left shift bit za neki broj pozicija
-            if int(broj) & temp > 0: # binary and izmjedju ulaznog broja i testnog broja
+            temp = 1 << int(bit_position)  # left shift bit za neki broj pozicija
+            if int(broj) & temp > 0:  # binary and izmjedju ulaznog broja i testnog broja
                 return True
             else:
                 return False
@@ -265,11 +266,12 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
         if np.isnan(sint):
             return 'Status nije definiran'
         sint = int(sint)
-        rez = self._statusLookup.get(sint, None) #see if value exists
+        rez = self._statusLookup.get(sint, None)  # see if value exists
         if rez == None:
-            rez = self._check_status_flags(sint) #calculate
-            self._statusLookup[sint] = rez #store value for future lookup
+            rez = self._check_status_flags(sint)  # calculate
+            self._statusLookup[sint] = rez  # store value for future lookup
         return rez
+
 
 ################################################################################
 ################################################################################
@@ -433,7 +435,7 @@ class ZeroSpanFrameModel(QtCore.QAbstractTableModel):
 class KorekcijaFrameModel(QtCore.QAbstractTableModel):
     def __init__(self, frejm=None, parent=None):
         QtCore.QAbstractTableModel.__init__(self, parent)
-        self._dummydata = {'vrijeme': '', 'A': np.NaN, 'B': np.NaN, 'Sr': np.NaN, 'remove': '', 'calc':''}
+        self._dummydata = {'vrijeme': '', 'A': np.NaN, 'B': np.NaN, 'Sr': np.NaN, 'remove': '', 'calc': ''}
         self._expectedCols = ['vrijeme', 'A', 'B', 'Sr', 'remove', 'calc']
         self._dataFrejm = pd.DataFrame(columns=self._expectedCols)
         if frejm is None:
@@ -484,18 +486,18 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         df = self._dataFrejm.copy()
         # izbaci zadnji red (za dodavanje stvari...)
         df = df.iloc[:-1, :]
-        TEST1  = len(df) # broj redova tablice
+        TEST1 = len(df)  # broj redova tablice
         # sort
         df.dropna(axis=0, inplace=True)
         df.sort_values(['vrijeme'], inplace=True)
         df = df.set_index(df['vrijeme'])
-        #drop stupce koji su pomocni
+        # drop stupce koji su pomocni
         df.drop(['remove', 'calc', 'vrijeme'], axis=1, inplace=True)
         df['A'] = df['A'].astype(float)
         df['B'] = df['B'].astype(float)
         df['Sr'] = df['Sr'].astype(float)
 
-        TEST2  = len(df) # broj redova tablice bez n/a
+        TEST2 = len(df)  # broj redova tablice bez n/a
         if TEST1 != TEST2:
             raise ValueError('Parametri korekcije nisu dobro ispunjeni')
         if (not len(df)) or (not len(frejm)):
@@ -557,7 +559,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
             self._dataFrejm.iloc[-1, 0] = pd.NaT
             self._dataFrejm = self._dataFrejm.sort_values('vrijeme')
             self._dataFrejm.iloc[-1, 0] = ''
-            #do the sort
+            # do the sort
             self.layoutChanged.emit()
             self.emit(QtCore.SIGNAL('update_persistent_delegate'))
         else:
@@ -578,7 +580,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
             self.endInsertRows()
             self.layoutChanged.emit()
             self.sort(0, QtCore.Qt.AscendingOrder)
-            #self.emit(QtCore.SIGNAL('update_persistent_delegate'))
+            # self.emit(QtCore.SIGNAL('update_persistent_delegate'))
             return True
         except Exception as err:
             logging.error(str(err), exc_info=True)
@@ -602,7 +604,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
             self.endRemoveRows()
             self.layoutChanged.emit()
             self.sort(0, QtCore.Qt.AscendingOrder)
-            #self.emit(QtCore.SIGNAL('update_persistent_delegate'))
+            # self.emit(QtCore.SIGNAL('update_persistent_delegate'))
             return True
         except Exception as err:
             logging.error(str(err), exc_info=True)
@@ -708,10 +710,10 @@ class CalcGumbDelegate(QtGui.QItemDelegate):
 
     def calculate_AB_for_row(self, x):
         # glupo do bola, ali radi za sada
-        view = self.sender().parent().parent() #tableview
-        model = view.model() #model unutar table view-a
+        view = self.sender().parent().parent()  # tableview
+        model = view.model()  # model unutar table view-a
         indeks = view.indexAt(self.sender().pos())
-        gui = view.parent().parent() #gui insatnca
+        gui = view.parent().parent()  # gui insatnca
         ab = gui.get_AB_values()
         if ab:
             model.set_AB_for_row(indeks.row(), ab[0], ab[1])

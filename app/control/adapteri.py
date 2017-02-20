@@ -6,13 +6,12 @@ import pandas as pd
 import app.model.dto as dto
 import app.model.dto_parser as dto_parser
 
+
 class MalformedJSONException(Exception):
     """Iznimka kada ne valja ulazni JSON"""
 
 
 class Adapter:
-
-
     def __init__(self):
         self.obavezni_json_stupci = []
 
@@ -20,8 +19,8 @@ class Adapter:
         raise NotImplementedError
 
     def _provjeri(self, data_frame, obavezni_json_stupci):
-        d1=len(data_frame.columns)
-        d2=len(obavezni_json_stupci)
+        d1 = len(data_frame.columns)
+        d2 = len(obavezni_json_stupci)
         if len(data_frame.columns) < len(obavezni_json_stupci):
             raise MalformedJSONException('JSON ima manje stupaca od obaveznog broja')
         for stupac in obavezni_json_stupci:
@@ -33,7 +32,7 @@ class Adapter:
 class ZeroSpanAdapter(Adapter):
     # REVIEW mislim da je ovo pogresno. Adapter bi trebao poslati jedan Z/S dataframe, a onda neka dokument radi sa njime sto hoce
     def __init__(self):
-        super(Adapter,self).__init__()
+        super(Adapter, self).__init__()
         self.obavezni_json_stupci = ['vrsta', 'vrijeme', 'vrijednost', 'minDozvoljeno', 'maxDozvoljeno']
         self.frame_stupci = ['vrijednost', 'korekcija', 'minDozvoljeno', 'maxDozvoljeno', 'A', 'B', 'Sr', 'LDL']
 
@@ -68,6 +67,7 @@ class ZeroSpanAdapter(Adapter):
 
 class PodatakAdapter(Adapter):
     def __init__(self):
+        super().__init__()
         self.frame_stupci = ['koncentracija', 'korekcija', 'flag', 'statusString',
                              'status', 'id', 'A', 'B', 'Sr', 'LDL']
         self.obavezni_json_stupci = ['vrijeme', 'id', 'vrijednost', 'statusString', 'valjan',
@@ -106,7 +106,6 @@ class PodatakAdapter(Adapter):
 
 
 class ProgramMjerenjaAdapter:
-
     def adaptiraj(self, ulaz):
         """
         """

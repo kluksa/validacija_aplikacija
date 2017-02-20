@@ -14,7 +14,6 @@ class KanalDijalog(BASE_KANAL_DIJALOG, FORM_KANAL_DIJALOG):
         self.izabraniKanal = None
         self.treeModel = None
 
-
     def set_program(self, drvo):
         self.treeModel = ProgramTreeModel(drvo)
         self.treeView.setModel(self.treeModel)
@@ -39,7 +38,7 @@ class KanalDijalog(BASE_KANAL_DIJALOG, FORM_KANAL_DIJALOG):
             self.done(self.Accepted)
 
 
-class TreeItem():
+class TreeItem:
     def __init__(self, data, parent=None):
         self.parentItem = parent
         self.itemData = data
