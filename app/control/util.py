@@ -1,6 +1,5 @@
 import logging
 
-
 def setup_logging(file='validacija.log', level=logging.INFO, mode='w'):
     """Inicijalizacija loggera"""
     try:

@@ -22,7 +22,7 @@ class DTOParser:
             raise NotImplementedError
 
     def __init__(self, vrsta):
-        parseri = [self.parseJson, self.parseXML]
+        parseri = [self.parseJson]
         self.vrsta = vrsta
         self.parse = parseri[vrsta]
 

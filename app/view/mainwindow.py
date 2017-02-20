@@ -1,22 +1,21 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
-from datetime import timedelta
 
-import numpy as np
 import pandas as pd
 from PyQt4 import QtGui, QtCore, uic
 from requests.exceptions import RequestException
 
-import app.model.dokument
 from app.control.rest_comm import RESTZahtjev, MockZahtjev
 from app.control.satniagregator import SatniAgregator
+from app.model.dokument import Dokument
 from app.model.konfig_objekt import config, GrafKonfig
 from app.model.qtmodels import GumbDelegate, CalcGumbDelegate
-from app.view import auth_login
-from app.view import kanal_dijalog
 from app.view.abcalc import ABKalkulator
+from app.view.auth_login import DijalogLoginAuth
 from app.view.canvas import GrafDisplayWidget
+from app.view.input_output import DownloadProgressBar
+from app.view.kanal_dijalog import KanalDijalog
 
 MAIN_BASE, MAIN_FORM = uic.loadUiType('./app/view/ui_files/mainwindow.ui')
 
@@ -27,7 +26,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.cfgGraf = GrafKonfig('graf_params.cfg')
         #        util.setup_logging(config.log.file, config.log.level, config.log.mode)
         self.setupUi(self)
-        self.dokument = app.model.dokument.Dokument()
+        self.dokument = Dokument()
 
         self.toggle_logged_in_state(False)
         self.kanvas = GrafDisplayWidget(config.icons.span_select_icon,
@@ -36,7 +35,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
 
         # dependency injection kroz konstruktor je puno bolji pattern od slanja konfig objekta
 
-        if False:
+        if True:
             self.restRequest = MockZahtjev()
         else:
             self.restRequest = RESTZahtjev(config.rest.program_mjerenja_url,
@@ -44,24 +43,14 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
                                            config.rest.status_map_url,
                                            config.rest.zero_span_podaci_url)
 
-            # self.restRequest = RESTZahtjev(self.cfg.cfg['REST') #.restProgramMjerenja, self.cfg.restSiroviPodaci,
-            # self.cfg.restStatusMap, self.cfg.restZeroSpanPodaci)
-
-        self.progress_bar = QtGui.QProgressBar()
-        self.progress_bar.setWindowTitle('Load status:')
-        self.progress_bar.setGeometry(300, 300, 200, 40)
-        self.progress_bar.setRange(0, 100)
+        self.progress_bar = DownloadProgressBar(self.restRequest)
 
         self.dataDisplay.setModel(self.dokument.koncModel)
         self.korekcijaDisplay.setModel(self.dokument.korekcijaModel)
 
         self.sredi_delegate_za_tablicu()
 
-        self.program_mjerenja_dlg = kanal_dijalog.KanalDijalog()
-        self.thread = QtCore.QThread()
-        self.download_podataka_worker = DownloadPodatakaWorker(self.restRequest)
-        self.download_podataka_worker.moveToThread(self.thread)
-        self.thread.started.connect(self.download_podataka_worker.run)
+        self.program_mjerenja_dlg = KanalDijalog()
 
         # custom persistent delegates...
         # TODO! triple click fail... treba srediti persistent editor na cijeli stupac
@@ -261,7 +250,6 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         # gumbi za add/remove/edit parametre korekcije i primjenu korekcije
 
         self.buttonUcitaj.clicked.connect(self.ucitaj_podatke2)
-        self.buttonExport.clicked.connect(self.export_korekcije)
         self.buttonPrimjeniKorekciju.clicked.connect(self.primjeni_korekciju)
         # quit
         self.connect(self,
@@ -285,10 +273,6 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         # self.connect(self.gui,
         #              QtCore.SIGNAL('primjeni_korekciju'),
         #              self.primjeni_korekciju)
-        # export korekcije
-        self.connect(self,
-                     QtCore.SIGNAL('export_korekcije'),
-                     self.export_korekcije)
         # serijalizacija dokumenta
         self.connect(self,
                      QtCore.SIGNAL('serijaliziraj_dokument'),
@@ -321,11 +305,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.connect(self.dokument.korekcijaModel,
                      QtCore.SIGNAL('update_persistent_delegate'),
                      self.sredi_delegate_za_tablicu)
-        self.download_podataka_worker.gotovo_signal.connect(self.ucitavanje_gotovo)
-        self.download_podataka_worker.progress_signal.connect(self.ucitavanje_progress)
-        self.download_podataka_worker.greska_signal.connect(self.ucitavanje_greska)
-        self.download_podataka_worker.greska_signal.connect(self.thread.quit)
-        self.download_podataka_worker.gotovo_signal.connect(self.thread.quit)
+        self.progress_bar.download_podataka_worker.gotovo_signal.connect(self.ucitavanje_gotovo)
 
     def update_opis_grafa(self, opis):
         self.labelOpisGrafa.setText(opis)
@@ -364,7 +344,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.ispodLDLLabel.setText(str(ispod_l_d_l))
 
     def handle_login(self):
-        dijalog = auth_login.DijalogLoginAuth()
+        dijalog = DijalogLoginAuth()
         if dijalog.exec_():
             creds = dijalog.get_credentials()
             self.log_in(creds)
@@ -378,14 +358,11 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.action_ucitaj.setEnabled(x)
         self.action_export.setEnabled(x)
 
-    def handle_logout(self):
-        self.emit(QtCore.SIGNAL('initiate_logout'))
-
     def handle_ucitaj(self):
         self.emit(QtCore.SIGNAL('ucitaj_minutne'))
 
     def handle_export(self):
-        self.emit(QtCore.SIGNAL('export_korekcije'))
+        self.export_korekcije()
 
     def handle_export_agregiranih(self):
         self.emit(QtCore.SIGNAL('export_satno_agregiranih'))
@@ -498,21 +475,10 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
                                                           self.dokument.vrijeme_od, self.dokument.vrijeme_do))
 
         QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
-        self.download_podataka_worker.set(self.dokument.aktivni_kanal, self.dokument.vrijeme_od,
+
+        self.progress_bar.ucitaj(self.dokument.aktivni_kanal, self.dokument.vrijeme_od,
                                           self.dokument.vrijeme_do)
-
-        self.thread.start()
-
-        self.progress_bar.show()
         # self.download_podataka_worker.start()
-
-    def ucitavanje_progress(self, n):
-        self.progress_bar.setValue(n)
-
-    def ucitavanje_greska(self, err):
-        QtGui.QMessageBox.warning(self, 'Pogreška',
-                                  'Učitavanje podataka nije uspjelo ' + str(err))
-        self.progress_bar.close()
 
     def ucitavanje_u_tijeku(self):
         QtGui.QMessageBox.warning(self, 'Učitavanje u tijeku',
@@ -529,123 +495,3 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.set_data_models_to_canvas(self.dokument.koncModel,
                                        self.dokument.zeroModel,
                                        self.dokument.spanModel)
-
-
-class DownloadPodatakaWorker(QtCore.QObject):
-    greska_signal = QtCore.pyqtSignal(Exception)
-    progress_signal = QtCore.pyqtSignal(int)
-    gotovo_signal = QtCore.pyqtSignal(dict)
-    u_tijeku_signal = QtCore.pyqtSignal()
-
-    def __init__(self, rest, parent=None):
-        super(self.__class__, self).__init__()
-        self.restRequest = rest
-        self.aktivan = False
-
-    def set(self, kanal, od, do):
-        self.kanal = kanal
-        self.od = od
-        self.do = do
-        self.ndays = int((do - od).days)
-
-    def run(self):
-        if self.aktivan:
-            self.u_tijeku_signal.emit()
-            return
-
-        try:
-            rezultat = {}
-            self.aktivan = True
-            self.status_bits = self.restRequest.get_status_map()
-            broj_u_satu = self.restRequest.get_broj_u_satu(self.kanal)
-            zero_df = pd.DataFrame()
-            span_df = pd.DataFrame()
-            mjerenja_df = pd.DataFrame()
-            for d in range(0, self.ndays):
-                dan = (self.od + timedelta(d)).strftime('%Y-%m-%d')
-                mjerenja = self.restRequest.get_sirovi(self.kanal, dan)
-                [zero, span] = self.restRequest.get_zero_span(self.kanal, dan, 1)
-                zero_df = zero_df.append(zero)
-                span_df = span_df.append(span)
-                mjerenja_df = mjerenja_df.append(mjerenja)
-                self.progress_signal.emit(int(100 * d / self.ndays))
-
-            if 3600 % broj_u_satu != 0:
-                logging.error("Frekvencija mjerenja nije cijeli broj sekundi", exc_info=True)
-                raise NotIntegerFreq()
-            frek = str(int(3600 / broj_u_satu)) + "S"
-
-            fullraspon = pd.date_range(start=self.od, end=self.do, freq=frek)
-
-            mjerenja_df = mjerenja_df.reindex(fullraspon)
-            mjerenja_df = self.sredi_missing_podatke(mjerenja_df)
-            rezultat['mjerenja'] = mjerenja_df
-            rezultat['zero'] = zero_df
-            rezultat['span'] = span_df
-            self.gotovo_signal.emit(rezultat)
-        except Exception as err:
-            logging.error(str(err), exc_info=True)
-            self.greska_signal.emit(err)
-        finally:
-            self.aktivan = False
-
-    def sredi_missing_podatke(self, frejm):
-        # indeks svi konc nan
-        i0 = np.isnan(frejm['koncentracija'])
-        i1 = np.isnan(frejm['status'])
-        # indeks konc i status su nan
-        i1 = (np.isnan(frejm['koncentracija'])) & (np.isnan(frejm['status']))
-        # indeks konc je nan, status nije
-        i2 = (np.isnan(frejm['koncentracija'])) & ([not m for m in np.isnan(frejm['status'])])
-        i2 = i0 & ~ i1
-
-        frejm.loc[i0 & i1, 'status'] = 32768
-        frejm.loc[i2, 'status'] = [self._bor_value(m, 32768) for m in frejm.loc[i2, 'status']]
-        frejm.loc[i0, 'flag'] = -1
-        return frejm
-
-    def _bor_value(self, status, val):
-        try:
-            return int(status) | int(val)
-        except Exception:
-            return 32768
-
-    def _check_bit(self, broj, bit_position):
-        """
-        Pomocna funkcija za testiranje statusa
-        Napravi temporary integer koji ima samo jedan bit vrijednosti 1 na poziciji
-        bit_position. Napravi binary and takvog broja i ulaznog broja.
-        Ako oba broja imaju bit 1 na istoj poziciji vrati True, inace vrati False.
-        """
-        if bit_position is not None:
-            temp = 1 << int(bit_position)  # left shift bit za neki broj pozicija
-            if int(broj) & temp > 0:  # binary and izmjedju ulaznog broja i testnog broja
-                return True
-            else:
-                return False
-
-    def _check_status_flags(self, broj):
-        """
-        provjeri stauts integera broj dekodirajuci ga sa hash tablicom
-        {bit_pozicija:opisni string}. Vrati string opisa.
-        """
-        flaglist = []
-        for key, value in self._status_bits.items():
-            if self._check_bit(broj, key):
-                flaglist.append(value)
-        opis = ",".join(flaglist)
-        return opis
-
-    def _status_int_to_string(self, sint):
-        if np.isnan(sint):
-            return 'Status nije definiran'
-        sint = int(sint)
-        rez = self._statusLookup.get(sint, None)  # see if value exists
-        if rez is None:
-            rez = self._check_status_flags(sint)  # calculate
-            self._statusLookup[sint] = rez  # store value for future lookup
-        return rez
-
-
-class NotIntegerFreq(Exception):
-    pass
