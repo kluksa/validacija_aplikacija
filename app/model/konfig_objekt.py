@@ -4,6 +4,10 @@ import configparser
 import matplotlib.colors as colors
 
 
+def init(dev = False):
+    if dev:
+        pass
+
 class Konfig:
     class Log:
         LOG_LEVELS = {'DEBUG': logging.DEBUG,
@@ -34,6 +38,7 @@ class Konfig:
         self.log = Konfig.Log(self._cfg['LOG_SETUP'])
         self.rest = Konfig.Rest(self._cfg['REST'])
         self.icons = Konfig.Icons(self._cfg['ICONS'])
+        self.development = False
 
     def read_config(self, datoteke):
         cfg = configparser.ConfigParser()

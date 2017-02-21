@@ -6,16 +6,16 @@ import numpy as np
 import pandas as pd
 from PyQt4 import QtGui, QtCore
 
+class ExportWorker(QtCore.QObject):
+    pass
 
-def export_frame(frame, fname):
+def export_frame(frame, folder, fname):
+    fname = os.path.normpath(os.path.join(folder, fname))
     frame.to_csv(fname, sep=';')
 
 
 def export_korekcije(dokument, fname):
     if fname:
-        frejmPodaci = dokument.koncModel.datafrejm
-        frejmZero = dokument.zeroModel.datafrejm
-        frejmSpan = dokument.spanModel.datafrejm
         frejmKor = dokument.korekcijaModel.datafrejm
         # izbaci zadnji red (za dodavanje stvari...)
         frejmKor = frejmKor.iloc[:-1, :]
@@ -26,48 +26,12 @@ def export_korekcije(dokument, fname):
             fname += '.csv'
         # os... sastavi imena fileova
         folder, name = os.path.split(fname)
-        podName = "podaci_" + name
-        zeroName = "zero_" + name
-        spanName = "span_" + name
-        korName = "korekcijski_parametri_" + name
-        podName = os.path.normpath(os.path.join(folder, podName))
-        zeroName = os.path.normpath(os.path.join(folder, zeroName))
-        spanName = os.path.normpath(os.path.join(folder, spanName))
-        korName = os.path.normpath(os.path.join(folder, korName))
-        frejmPodaci.to_csv(podName, sep=';')
-        frejmZero.to_csv(zeroName, sep=';')
-        frejmSpan.to_csv(spanName, sep=';')
-        frejmKor.to_csv(korName, sep=';')
+        export_frame(dokument.koncModel.datafrejm, folder, "podaci_" + name)
+        export_frame(dokument.zeroModel.datafrejm, folder, "zero_" + name)
+        export_frame(dokument.spanModel.datafrejm, folder, "span_" + name)
+        export_frame(frejmKor, folder, "korekcijski_parametri_" + name)
         return True
     return False
-
-
-class DownloadProgressBar(QtGui.QProgressBar):
-    def __init__(self, restRequest, parent=None):
-        super(QtGui.QProgressBar, self).__init__(parent)
-        self.setWindowTitle('Load status:')
-        self.setGeometry(300, 300, 200, 40)
-        self.setRange(0, 100)
-        self.thread = QtCore.QThread()
-        self.download_podataka_worker = DownloadPodatakaWorker(restRequest)
-        self.download_podataka_worker.moveToThread(self.thread)
-        self.download_podataka_worker.progress_signal.connect(self.ucitavanje_progress)
-        self.download_podataka_worker.greska_signal.connect(self.ucitavanje_greska)
-        self.download_podataka_worker.greska_signal.connect(self.thread.quit)
-        self.download_podataka_worker.gotovo_signal.connect(self.thread.quit)
-        self.thread.started.connect(self.download_podataka_worker.run)
-
-    def ucitaj(self, aktivni_kanal, vrijeme_od, vrijeme_do):
-        self.download_podataka_worker.set(aktivni_kanal, vrijeme_od, vrijeme_do)
-        self.thread.start()
-        self.show()
-
-    def ucitavanje_progress(self, n):
-        self.setValue(n)
-
-    def ucitavanje_greska(self, err):
-        QtGui.QMessageBox.warning(self, 'Pogreška', 'Učitavanje podataka nije uspjelo ' + str(err))
-        self.close()
 
 
 class DownloadPodatakaWorker(QtCore.QObject):

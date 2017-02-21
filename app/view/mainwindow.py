@@ -6,16 +6,18 @@ import pandas as pd
 from PyQt4 import QtGui, QtCore, uic
 from requests.exceptions import RequestException
 
-from app.control.rest_comm import RESTZahtjev, MockZahtjev
+from app.control.rest_comm import get_comm_object
 from app.control.satniagregator import SatniAgregator
 from app.model.dokument import Dokument
 from app.model.konfig_objekt import config, GrafKonfig
-from app.model.qtmodels import GumbDelegate, CalcGumbDelegate
+from app.model.qtmodels import GumbDelegate, CalcGumbDelegate, KoncTableModel
 from app.view.abcalc import ABKalkulator
 from app.view.auth_login import DijalogLoginAuth
 from app.view.canvas import GrafDisplayWidget
-from app.view.input_output import DownloadProgressBar
+from app.view.input_output import DownloadPodatakaWorker
 from app.view.kanal_dijalog import KanalDijalog
+import app.view.input_output as input_output
+
 
 MAIN_BASE, MAIN_FORM = uic.loadUiType('./app/view/ui_files/mainwindow.ui')
 
@@ -35,17 +37,12 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
 
         # dependency injection kroz konstruktor je puno bolji pattern od slanja konfig objekta
 
-        if True:
-            self.restRequest = MockZahtjev()
-        else:
-            self.restRequest = RESTZahtjev(config.rest.program_mjerenja_url,
-                                           config.rest.sirovi_podaci_url,
-                                           config.rest.status_map_url,
-                                           config.rest.zero_span_podaci_url)
+
+        self.restRequest = get_comm_object(config)
 
         self.progress_bar = DownloadProgressBar(self.restRequest)
 
-        self.dataDisplay.setModel(self.dokument.koncModel)
+        #self.dataDisplay.setModel(KoncTableModel(self.dokument.koncModel.datafrejm))
         self.korekcijaDisplay.setModel(self.dokument.korekcijaModel)
 
         self.sredi_delegate_za_tablicu()
@@ -75,89 +72,59 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
             QtGui.QApplication.restoreOverrideCursor()
 
     def export_korekcije(self):
-        print('NOT IMPLEMENTED SA RESTOM')
-        try:
-            QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+        fajlNejm = QtGui.QFileDialog.getSaveFileName(self,
+                                                     "export korekcije")
+        if fajlNejm:
+            if not fajlNejm.endswith('.csv'):
+                fajlNejm += '.csv'
 
-            frejmPodaci = self.dokument.koncModel.datafrejm
-            frejmZero = self.dokument.zeroModel.datafrejm
-            frejmSpan = self.dokument.spanModel.datafrejm
-            frejmKor = self.dokument.korekcijaModel.datafrejm
-            # izbaci zadnji red (za dodavanje stvari...)
-            frejmKor = frejmKor.iloc[:-1, :]
-            # drop nepotrebne stupce (remove/calc placeholderi)
-            frejmKor.drop(['remove', 'calc'], axis=1, inplace=True)
+            try:
+                QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+                input_output.export_korekcije(self.dokument, fajlNejm)
 
-            fajlNejm = QtGui.QFileDialog.getSaveFileName(self,
-                                                         "export korekcije")
-            if fajlNejm:
-                if not fajlNejm.endswith('.csv'):
-                    fajlNejm += '.csv'
-                # os... sastavi imena fileova
-                folder, name = os.path.split(fajlNejm)
-                podName = "podaci_" + name
-                zeroName = "zero_" + name
-                spanName = "span_" + name
-                korName = "korekcijski_parametri_" + name
-                podName = os.path.normpath(os.path.join(folder, podName))
-                zeroName = os.path.normpath(os.path.join(folder, zeroName))
-                spanName = os.path.normpath(os.path.join(folder, spanName))
-                korName = os.path.normpath(os.path.join(folder, korName))
-                frejmPodaci.to_csv(podName, sep=';')
-                frejmZero.to_csv(zeroName, sep=';')
-                frejmSpan.to_csv(spanName, sep=';')
-                frejmKor.to_csv(korName, sep=';')
+            except Exception as err:
+                msg = "General exception. \n\n{0}".format(str(err))
+                logging.error(str(err), exc_info=True)
                 QtGui.QApplication.restoreOverrideCursor()
-                msg = 'Podaci su uspjesno spremljeni\ndata={0}\nzero={1}\nspan={2}\nParametri={3}'.format(podName,
-                                                                                                          zeroName,
-                                                                                                          spanName,
-                                                                                                          korName)
-                QtGui.QMessageBox.information(QtGui.QWidget(), 'Info', msg)
-            else:
-                pass  # canceled
-        except Exception as err:
-            msg = "General exception. \n\n{0}".format(str(err))
-            logging.error(str(err), exc_info=True)
-            QtGui.QApplication.restoreOverrideCursor()
-            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
-        finally:
-            QtGui.QApplication.restoreOverrideCursor()
+                QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
+            finally:
+                QtGui.QApplication.restoreOverrideCursor()
+
 
     def export_satno_agregiranih(self):
-        try:
-            fajlNejm = QtGui.QFileDialog.getSaveFileName(self,
-                                                         "export satno agregiranih")
-            if fajlNejm:
-                if not fajlNejm.endswith('.csv'):
-                    fajlNejm += '.csv'
+        fajlNejm = QtGui.QFileDialog.getSaveFileName(self,
+                                                     "export satno agregiranih")
+        if fajlNejm:
+            if not fajlNejm.endswith('.csv'):
+                fajlNejm += '.csv'
+            try:
+                QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
                 frejm = self.dokument.koncModel.datafrejm
                 broj_u_satu = self.restRequest.get_broj_u_satu(self.dokument.aktivni_kanal)
                 output = self.satniAgregator.agregiraj(frejm, broj_u_satu)
-                QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
                 output.to_csv(fajlNejm)
                 QtGui.QApplication.restoreOverrideCursor()
                 msg = 'Podaci su uspjesno spremljeni\nagregirani={0}'.format(fajlNejm)
                 QtGui.QMessageBox.information(QtGui.QWidget(), 'Info', msg)
-            else:
-                pass  # canceled
-        except Exception as err:
-            logging.error(str(err), exc_info=True)
-            QtGui.QApplication.restoreOverrideCursor()
-        finally:
-            QtGui.QApplication.restoreOverrideCursor()
+            except Exception as err:
+                msg = "General exception. \n\n{0}".format(str(err))
+                logging.error(str(err), exc_info=True)
+                QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
+            finally:
+                QtGui.QApplication.restoreOverrideCursor()
 
     def spremanje_podataka_u_file(self):
         """spremanje podataka u file"""
-        try:
-            # get file sa save
-            fajlNejm = QtGui.QFileDialog.getSaveFileName(self,
-                                                         "Spremi podatke")
-            if fajlNejm:
-                if not fajlNejm.endswith('.dat'):
-                    fajlNejm += '.dat'
-                # spinning cursor...
-                QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
 
+        # get file sa save
+        fajlNejm = QtGui.QFileDialog.getSaveFileName(self,
+                                                     "Spremi podatke")
+        if fajlNejm:
+            if not fajlNejm.endswith('.dat'):
+                fajlNejm += '.dat'
+            # spinning cursor...
+            QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+            try:
                 bstr = self.dokument.get_pickleBinary()
                 with open(fajlNejm, 'wb') as fn:
                     fn.write(bstr)
@@ -165,16 +132,13 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
                 QtGui.QApplication.restoreOverrideCursor()
                 msg = 'Podaci su uspjesno spremljeni\nfile={0}'.format(str(fajlNejm))
                 QtGui.QMessageBox.information(QtGui.QWidget(), 'Info', msg)
-            else:
-                pass  # canceled
-        except Exception as err:
-            msg = "General exception. \n\n{0}".format(str(err))
-            logging.error(str(msg), exc_info=True)
-            QtGui.QApplication.restoreOverrideCursor()
-            self.update_opis_grafa("n/a")
-            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
-        finally:
-            QtGui.QApplication.restoreOverrideCursor()
+            except Exception as err:
+                msg = "General exception. \n\n{0}".format(str(err))
+                logging.error(str(msg), exc_info=True)
+                self.update_opis_grafa("n/a")
+                QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
+            finally:
+                QtGui.QApplication.restoreOverrideCursor()
 
     def ucitavanje_podataka_iz_filea(self):
         """ucitavanje podataka iz prethodno spremljenog filea"""
@@ -199,6 +163,8 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
                 self.set_data_models_to_canvas(self.dokument.koncModel,
                                                self.dokument.zeroModel,
                                                self.dokument.spanModel)
+                self.dataDisplay.setModel(KoncTableModel(self.dokument.koncModel.datafrejm))
+
                 self.sredi_delegate_za_tablicu()
 
                 QtGui.QApplication.restoreOverrideCursor()
@@ -495,3 +461,33 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.set_data_models_to_canvas(self.dokument.koncModel,
                                        self.dokument.zeroModel,
                                        self.dokument.spanModel)
+        self.dataDisplay.setModel(KoncTableModel(self.dokument.koncModel.datafrejm))
+
+class DownloadProgressBar(QtGui.QProgressBar):
+    def __init__(self, restRequest, parent=None):
+        super(QtGui.QProgressBar, self).__init__(parent)
+        self.setWindowTitle('Load status:')
+        self.setGeometry(300, 300, 200, 40)
+        self.setRange(0, 100)
+        self.thread = QtCore.QThread()
+        self.download_podataka_worker = DownloadPodatakaWorker(restRequest)
+        self.download_podataka_worker.moveToThread(self.thread)
+        self.download_podataka_worker.progress_signal.connect(self.ucitavanje_progress)
+        self.download_podataka_worker.greska_signal.connect(self.ucitavanje_greska)
+        self.download_podataka_worker.greska_signal.connect(self.thread.quit)
+        self.download_podataka_worker.gotovo_signal.connect(self.thread.quit)
+        self.thread.started.connect(self.download_podataka_worker.run)
+
+    def ucitaj(self, aktivni_kanal, vrijeme_od, vrijeme_do):
+        self.download_podataka_worker.set(aktivni_kanal, vrijeme_od, vrijeme_do)
+        self.thread.start()
+        self.show()
+
+    def ucitavanje_progress(self, n):
+        self.setValue(n)
+
+    def ucitavanje_greska(self, err):
+        QtGui.QMessageBox.warning(self, 'Pogreška', 'Učitavanje podataka nije uspjelo ' + str(err))
+        self.close()
+
+

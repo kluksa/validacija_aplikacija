@@ -3,9 +3,9 @@ import os
 import pickle
 
 from app.model import qtmodels
+from PyQt4 import QtCore
 
-
-class Dokument(object):
+class Dokument(QtCore.QObject):
     """Sto instanca ove klase treba raditi ???
     1. čuva dataframeove sa podacima, zero, span
     2. čuva dataframe sa koeficijentima
@@ -14,6 +14,8 @@ class Dokument(object):
     - Stablo sa programom je model vezan uz kanal_dijalog, dakle nije mu mjesto u dokumentu
     - od, do, aktivni program mogu biti ovdje, a mogu biti i kanal_dijalog-u
     """
+
+    novi_podaci = QtCore.pyqtSignal()
 
     def __init__(self):
         # nested dict mjerenja
@@ -69,7 +71,7 @@ class Dokument(object):
         """Qt table model sa tockama za korekciju"""
         return self._korekcijaModel
 
-    def get_pickleBinary(self, fname):
+    def get_pickleBinary(self):
         mapa = {'kanal': self.aktivni_kanal,
                 'od': self.vrijeme_od,
                 'do': self.vrijeme_do,

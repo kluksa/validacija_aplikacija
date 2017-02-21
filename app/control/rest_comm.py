@@ -1,17 +1,16 @@
 # -*- coding: utf-8 -*-
-import datetime
 import json
-import logging
-import re
-
-import numpy as np
-import pandas as pd
 import requests
-from PyQt4 import QtGui
-from requests.auth import HTTPBasicAuth
-
 from app.control.adapteri import PodatakAdapter, ProgramMjerenjaAdapter, ZeroSpanAdapter
 
+def get_comm_object(config):
+    if config.development:
+        return MockZahtjev()
+    else:
+        return RESTZahtjev(config.rest.program_mjerenja_url,
+                                       config.rest.sirovi_podaci_url,
+                                       config.rest.status_map_url,
+                                       config.rest.zero_span_podaci_url)
 
 class MockZahtjev:
     def __init__(self, program_url='', sirovi_podaci_url='', status_map_url='',
@@ -47,7 +46,6 @@ class MockZahtjev:
         fname = "/home/kraljevic/PycharmProjects/validacija_aplikacija/test_resources/p" + str(n) + ".json"
         with open(fname, "r") as myfile:
             data = myfile.readline()
-            re.sub("", "", data)
         frejm = self.podatak_adapter.adaptiraj(data)
         return frejm
 
@@ -91,8 +89,7 @@ class RESTZahtjev(object):
         Output je integer
         """
         url = self.program_url + '/podaci/' + str(program_mjerenja.id)
-        head = {"accept": "application/json"}
-        out = json.loads(self._get_request(url, '', head))
+        out = json.loads(self._get_request(url, ''))
         return int(out['brojUSatu'])
 
     def get_status_map(self):
@@ -101,8 +98,7 @@ class RESTZahtjev(object):
         vraca mapu (dictionary):
         {broj bita [int] : opisni string [str]}
         """
-        head = {"accept": "application/json"}
-        json_str = self._get_request(self.status_map_url, '', head)
+        json_str = self._get_request(self.status_map_url, '')
         x = json.loads(json_str)
         rezultat = {}
         for i in range(len(x)):
@@ -116,9 +112,8 @@ class RESTZahtjev(object):
         Output funkcije je json string.
         """
         url = self.sirovi_podaci_url + '/' + str(program_mjerenja.id) + '/' + datum
-        payload = {"id": "getPodaci", "name": "GET", "broj_dana": 1}
-        head = {"accept": "application/json"}
-        frejm = self.podatak_adapter.adaptiraj(self._get_request(url, payload, head))
+        payload = {"broj_dana": 1}
+        frejm = self.podatak_adapter.adaptiraj(self._get_request(url, payload))
         return frejm
 
     def get_zero_span(self, program_mjerenja, datum, kolicina):
@@ -134,9 +129,8 @@ class RESTZahtjev(object):
         """
         # dat = datum.strftime('%Y-%m-%d')
         url = self.zero_span_podaci_url + '/' + str(program_mjerenja.id) + '/' + datum
-        payload = {"id": "getZeroSpanLista", "name": "GET", "broj_dana": int(kolicina)}
-        head = {"accept": "application/json"}
-        zero, span = self.zs_adapter.adaptiraj(self._get_request(url, payload, head))
+        payload = {"broj_dana": int(kolicina)}
+        zero, span = self.zs_adapter.adaptiraj(self._get_request(url, payload))
         return zero, span
 
     def get_programe_mjerenja(self):
@@ -148,19 +142,18 @@ class RESTZahtjev(object):
 
         -bitno za test login funkcionalnosti... bogatiji report
         """
-        head = {"accept": "application/json"}
         payload = {"id": "findAll", "name": "GET"}
-        out = self.program_adapter.adaptiraj(self._get_request(self.program_url, payload, head))
+        out = self.program_adapter.adaptiraj(self._get_request(self.program_url, {}))
         return out
 
-    def _get_request(self, url, params, headers):
+    def _get_request(self, url, params ):
         r = requests.get(url,
                          params=params,
                          timeout=39.1,
-                         headers=headers,
-                         auth=HTTPBasicAuth(self.user, self.pswd))
-        msg = 'status={0} , reason={1}, url={2}'.format(str(r.status_code), str(r.reason), url)
-        assert r.ok is True, msg
+                         headers={"accept": "application/json"},
+                         auth=requests.auth.HTTPBasicAuth(self.user, self.pswd))
+        if r.ok is not True:
+            raise RESTException('status={0} , reason={1}, url={2}'.format(str(r.status_code), str(r.reason), url))
         return r.text
 
     def upload_json_minutnih(self, program_mjerenja=None, jstring=None, datum=None):
@@ -183,7 +176,12 @@ class RESTZahtjev(object):
                          data=jstring,
                          headers=headers,
                          timeout=39.1,
-                         auth=HTTPBasicAuth(self.user, self.pswd))
+                         auth=requests.auth.HTTPBasicAuth(self.user, self.pswd))
         msg = 'status={0} , reason={1}, url={2}'.format(str(r.status_code), str(r.reason), url)
-        assert r.ok is True, msg
-        return True
+        if r.ok is not True:
+            raise RESTException(msg)
+
+class RESTException(Exception):
+    def __init__(self, message):
+        super(RESTException, self).__init__(message)
+

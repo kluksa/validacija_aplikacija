@@ -92,9 +92,6 @@ class PodatakAdapter(Adapter):
         df['koncentracija'] = df['koncentracija'].map(lambda x: x if x > -999 else np.NaN)
         df['flag'] = df['flag'].map(lambda x: 1 if x else -1)
         df = pd.concat([df, pd.DataFrame(columns=['korekcija', 'A', 'B', 'Sr', 'LDL'])])
-        # REVIEW sto je ovo?????????????????????
-        df['statusString'] = df['statusString']
-        # reorder
         df = df[self.frame_stupci]
         return df
 
