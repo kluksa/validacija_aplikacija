@@ -81,6 +81,7 @@ class DataReaderAndCombiner(object):
             #sredi satuse missing podataka
             masterKoncFrejm = self.sredi_missing_podatke(masterKoncFrejm)
             #output frejmove
+            #TODO! sredi flagove na masterKoncFrejmu (user flag i ldl flag)
             return masterKoncFrejm, masterZeroFrejm, masterSpanFrejm
         except Exception as err:
             logging.error(str(err), exc_info=True)
@@ -98,7 +99,10 @@ class DataReaderAndCombiner(object):
 
         frejm.loc[i1, 'status'] = 32768
         frejm.loc[i2, 'status'] = [self._bor_value(m, 32768) for m in frejm.loc[i2, 'status']]
+        #TODO! flag fix
+        #frejm.loc[i0, 'flag'] = -1
         frejm.loc[i0, 'flag'] = -1
+        frejm.loc[i0, 'base flag'] = -1
         return frejm
 
     def _bor_value(self, status, val):
@@ -116,8 +120,12 @@ class RESTZahtjev(object):
         self.konfig = konfig
         self.logmein(auth)
         #ocekivani stupci u ooutputu
+#        self.expectedColsKonc = ['koncentracija', 'korekcija', 'flag', 'statusString',
+#                                 'status', 'id', 'A', 'B', 'Sr', 'LDL']
+        #TODO! flag fix
         self.expectedColsKonc = ['koncentracija', 'korekcija', 'flag', 'statusString',
-                                 'status', 'id', 'A', 'B', 'Sr', 'LDL']
+                                 'status', 'id', 'A', 'B', 'Sr', 'LDL', 'base flag', 'user flag', 'ldl flag']
+
         self.expectedColsZero = ['zero', 'korekcija', 'minDozvoljeno',
                                  'maxDozvoljeno', 'A', 'B', 'Sr', 'LDL']
         self.expectedColsSpan = ['span', 'korekcija', 'minDozvoljeno',
@@ -313,6 +321,7 @@ class RESTZahtjev(object):
                          'statusInt':'status'}
             df.rename(columns=renameMap, inplace=True)
             df['koncentracija'] = df['koncentracija'].map(self._nan_conversion)
+            #df['flag'] = df['flag'].map(self._valjan_conversion)
             df['flag'] = df['flag'].map(self._valjan_conversion)
             df['korekcija'] = np.NaN #placeholder
             df['A'] = np.NaN #placeholder
@@ -320,6 +329,10 @@ class RESTZahtjev(object):
             df['Sr'] = np.NaN #placeholder
             df['LDL'] = np.NaN #placeholder
             df['statusString'] = df['statusString']
+            #TODO! flag fix
+            df['base flag'] = df['flag'].copy()
+            df['user flag'] = np.NaN
+            df['ldl flag'] = np.NaN
             #drop unused columns
             df.drop(['vrijeme', 'nivoValidacije'], inplace=True, axis=1)
             #reorder

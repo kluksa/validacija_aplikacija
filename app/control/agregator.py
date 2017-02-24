@@ -47,7 +47,8 @@ class Agregator(object):
         #2.korak : obuhvat i priprema podataka
         bezNanKonc = frejm[[not np.isnan(i) for i in frejm['korekcija']]] #bez nan vrijednosti
         bezLosihFlagova = bezNanKonc[bezNanKonc['flag']>=0] #samo flagovi >= 0
-        bezLosihStatusa = bezLosihFlagova[bezLosihFlagova['status']<1024] #samo statusi ispod 1024
+        bezLosihStatusa = bezLosihFlagova #TODO! rework this
+        #bezLosihStatusa = bezLosihFlagova[bezLosihFlagova['status']<2048] #samo statusi ispod 1024
 
         agCount = bezLosihStatusa['korekcija'].resample('H', closed='right', label='right').count()
         agregirani['count'] = agCount

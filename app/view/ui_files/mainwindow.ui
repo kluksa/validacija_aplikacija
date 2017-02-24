@@ -59,6 +59,13 @@
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="buttonLoadABSr">
+        <property name="text">
+         <string>Load parametre</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QLabel" name="labelOpisGrafa">
         <property name="sizePolicy">
          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">

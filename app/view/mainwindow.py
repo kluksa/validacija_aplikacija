@@ -55,6 +55,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.buttonSerialize.clicked.connect(self.handle_spremi_dokument)
         self.buttonUnserialize.clicked.connect(self.handle_load_dokument)
         self.buttonExportAgregirane.clicked.connect(self.handle_export_agregiranih)
+        self.buttonLoadABSr.clicked.connect(self.handle_load_ABSr_tablice)
 
         self.connect(self.kanvas,
                      QtCore.SIGNAL('graf_is_modified(PyQt_PyObject)'),
@@ -143,6 +144,9 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
 
     def handle_load_dokument(self):
         self.emit(QtCore.SIGNAL('unserijaliziraj_dokument'))
+
+    def handle_load_ABSr_tablice(self):
+        self.emit(QtCore.SIGNAL('load_absr_tablicu'))
 
     def draw_graf(self):
         self.kanvas.crtaj()

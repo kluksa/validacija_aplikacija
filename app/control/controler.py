@@ -89,6 +89,10 @@ class Kontroler(QtGui.QWidget):
         self.connect(self.gui,
                      QtCore.SIGNAL('export_satno_agregiranih'),
                      self.export_satno_agregiranih)
+        #load absr tablice (parametri za korekciju)
+        self.connect(self.gui,
+                     QtCore.SIGNAL('load_absr_tablicu'),
+                     self.load_absr_tablicu_iz_filea)
 
     def kickstart_gui(self):
         # set modele u odgovarajuce tablice
@@ -356,3 +360,36 @@ class Kontroler(QtGui.QWidget):
             QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
         finally:
             QtGui.QApplication.restoreOverrideCursor()
+
+    def load_absr_tablicu_iz_filea(self):
+        try:
+            #get file za load
+            fajlNejm = QtGui.QFileDialog.getOpenFileName(self.gui,
+                                                         "Ucitaj tablicu korekcijskih parametara")
+            if fajlNejm:
+                #spinning cursor...
+                QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+                #TODO!
+                frejm = pd.read_csv(fajlNejm,
+                                    sep=';',
+                                    index_col=0,
+                                    parse_dates=['vrijeme'])
+                #add button placeholder columns ['remove', 'calc']
+                frejm['remove'] = ''
+                frejm['calc'] = ''
+                self.dokument.korekcijaModel.datafrejm = frejm
+                self.primjeni_korekciju()
+                QtGui.QApplication.restoreOverrideCursor()
+                msg = 'Podaci su uspjesno ucitani\nfile={0}'.format(str(fajlNejm))
+                QtGui.QMessageBox.information(QtGui.QWidget(), 'Info', msg)
+            else:
+                pass # canceled
+        except Exception as err:
+            msg = "General exception. \n\n{0}".format(str(err))
+            logging.error(str(msg), exc_info=True)
+            QtGui.QApplication.restoreOverrideCursor()
+            self.gui.update_opis_grafa("n/a")
+            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
+        finally:
+            QtGui.QApplication.restoreOverrideCursor()
+

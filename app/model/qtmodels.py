@@ -189,8 +189,12 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
 
     def __init__(self, frejm=None, parent=None):
         QtCore.QAbstractTableModel.__init__(self, parent)
+#        self._expectedCols = ['koncentracija', 'korekcija', 'flag', 'statusString',
+#                                 'status', 'id', 'A', 'B', 'Sr', 'LDL']
+        #TODO! flag fix
         self._expectedCols = ['koncentracija', 'korekcija', 'flag', 'statusString',
-                                 'status', 'id', 'A', 'B', 'Sr', 'LDL']
+                                 'status', 'id', 'A', 'B', 'Sr', 'LDL', 'base flag', 'user flag', 'ldl flag']
+
         self._dataFrejm = pd.DataFrame(columns=self._expectedCols)
         self._opis = "Postaja , naziv formula ( mjerna jedinica )"
         self._kanalMeta = {}
@@ -221,15 +225,58 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
             self._dataFrejm = x[self._expectedCols]  # reodrer / crop columns
             indeksKorekcijaIspodLDL = self._dataFrejm['korekcija'] < self._dataFrejm['LDL']
             indeksKorekcijaIznadLDL = self._dataFrejm['korekcija'] >= self._dataFrejm['LDL']
+
             self._dataFrejm.loc[indeksKorekcijaIspodLDL, 'status'] = [(int(i) | 2048) for i in self._dataFrejm.loc[indeksKorekcijaIspodLDL, 'status']]
             self._dataFrejm.loc[indeksKorekcijaIznadLDL, 'status'] = [(int(i) & (~2048)) for i in self._dataFrejm.loc[indeksKorekcijaIznadLDL, 'status']]
             #TODO! extra flag ako ispod ldl
-            self._dataFrejm.loc[indeksKorekcijaIspodLDL, 'flag'] = -1
+            #self._dataFrejm.loc[indeksKorekcijaIspodLDL, 'flag'] = -1
+            #TODO! moram ispraviti flag ako je jedini status bio ldl
+            self._dataFrejm.loc[indeksKorekcijaIspodLDL, 'ldl flag'] = -1
+            self._dataFrejm.loc[indeksKorekcijaIznadLDL, 'ldl flag'] = 1
+            #TODO! calculate flag
+            self.update_final_flag()
+
             #sredi status string
             self._dataFrejm = self.sredi_status_stringove(self._dataFrejm)
             self.layoutChanged.emit()
         else:
             raise TypeError('Not a pandas DataFrame object'.format(type(x)))
+
+    def _make_flag(self, b, u, l):
+        """
+        base, user, ldl --> flag
+        """
+        #TODO! flag fix
+        if np.isnan(l): #ako ldl nije definiran
+            if np.isnan(u): #ako user nije definiran
+                return b #vrati base
+            else: #user je definiran
+                if u > 0: #ako je user ok
+                    return 1 #vrati ok
+                else: #ako je user los
+                    return -1 #vrati los
+        else: #ako je ldl definiran
+            if l > 0: #proveri da li je ldl ok
+                if np.isnan(u): # ako user nije definiran
+                    return b #vrati base
+                else: #user je definiran
+                    if u > 0: #ako je user ok
+                        return 1 #vrati ok
+                    else: #ako user los
+                        return -1 #vrati los
+            else: #ldl je los
+                return -1 #vrati los
+
+    def update_final_flag(self):
+        """
+        sets the value in 'flag' column based off values in 'base flag', 'user flag', 'ldl flag'
+        """
+        #TODO! flag fix
+        baseflag = self._dataFrejm['base flag']
+        userflag = self._dataFrejm['user flag']
+        ldlflag = self._dataFrejm['ldl flag']
+        out = [self._make_flag(b, u, l) for b,u,l in zip(baseflag, userflag, ldlflag)]
+        self._dataFrejm['flag'] = out
 
     @property
     def opis(self):
@@ -325,15 +372,20 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
         od = argDict['od']
         do = argDict['do']
         fl = argDict['noviFlag']
-        self._dataFrejm.loc[od:do, 'flag'] = fl
+        #TODO! user flag fix
+        #self._dataFrejm.loc[od:do, 'flag'] = fl
+        self._dataFrejm.loc[od:do, 'user flag'] = fl
         if fl < 0:
             self._dataFrejm.loc[od:do, 'status'] = [(int(i) | 1024) for i in self._dataFrejm.loc[od:do, 'status']]
         else:
             self._dataFrejm.loc[od:do, 'status'] = [(int(i) & (~1024)) for i in self._dataFrejm.loc[od:do, 'status']]
 
-        #TODO! LDL se ne smije proglasiti ok... nikad
-        ldlmask = [self._check_for_ldl(i) for i in self._dataFrejm.loc[:, 'status']]
-        self._dataFrejm.loc[ldlmask, 'flag'] = -1
+        #TODO! calculate flag
+        self.update_final_flag()
+
+        #LDL se nikada ne smije proglasiti ok...
+#        ldlmask = [self._check_for_ldl(i) for i in self._dataFrejm.loc[:, 'status']]
+#        self._dataFrejm.loc[ldlmask, 'flag'] = -1
 
         self._dataFrejm = self.sredi_status_stringove(self._dataFrejm)
         self.layoutChanged.emit()
@@ -612,6 +664,7 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         return frejm
 
     def primjeni_korekciju_na_frejm(self, frejm):
+        #TODO!
         """primjena korekcije na zadani frejm..."""
         #pripremi frejm korekcije za rad
         df = self._dataFrejm.copy()

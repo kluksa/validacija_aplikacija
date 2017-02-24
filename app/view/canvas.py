@@ -784,16 +784,20 @@ class Kanvas(FigureCanvas):
         frejmKonc = self.koncModel.datafrejm
         indeks = list(frejmKonc.index)
 
+        #broj mjerenja koji nisu NAN
+        broj_mjerenja = sum((not np.isnan(i) for i in frejmKonc.loc[:,'koncentracija']))
+
         ok = frejmKonc[frejmKonc['flag']>0]
         bad = frejmKonc[frejmKonc['flag']<0]
         #losa korekcija za los flag takodjer
         korekcijaOk = frejmKonc[(frejmKonc['korekcija']>=frejmKonc['LDL'])&(frejmKonc['flag']>=0)]
         korekcijaBad = frejmKonc[(frejmKonc['korekcija']<frejmKonc['LDL'])|(frejmKonc['flag']<0)]
         #count korektiranih manjih od 0 i manjih od ldl
-        korektirani_manji_od_nule = frejmKonc[frejmKonc['korekcija'] < 0].count()['korekcija']
-        korektirani_manji_od_LDL = korekcijaBad.count()['korekcija']
-        broj_dobrih_mjerenja = ok.count()['koncentracija']
         broj_dobrih_korektiranih = korekcijaOk.count()['korekcija']
+
+        ok_korektirani_manji_od_nule = korekcijaOk[korekcijaOk['korekcija'] < 0].count()['korekcija']
+        svi_korektirani_manji_od_LDL = frejmKonc[frejmKonc['korekcija']<frejmKonc['LDL']].count()['korekcija']
+
         #reindex
         ok = ok.reindex(indeks)
         bad = bad.reindex(indeks)
@@ -809,11 +813,12 @@ class Kanvas(FigureCanvas):
         self.axesC.set_xlim(self.xlim_original)
 
         #signlaiziraj update labela za obuhvat...
+        #TODO! counting  podataka
         mapa = {'ocekivano':len(indeks),
-                'broj_mjerenja':broj_dobrih_mjerenja,
+                'broj_mjerenja':broj_mjerenja,
                 'broj_korektiranih':broj_dobrih_korektiranih,
-                'ispod_nula':korektirani_manji_od_nule,
-                'ispod_LDL':korektirani_manji_od_LDL}
+                'ispod_nula':ok_korektirani_manji_od_nule,
+                'ispod_LDL':svi_korektirani_manji_od_LDL}
         self.emit(QtCore.SIGNAL('update_data_point_count(PyQt_PyObject)'), mapa)
 
         zeroLinija = self.axesC.axhline(0.0,
