@@ -394,7 +394,6 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
             else:
                 QtGui.QApplication.quit()
 
-                # REVIEW ovo je besmisleno. Zbog 3 linije koda imaš dupli exception handling
 
     def init_program_mjerenja(self):
         try:
@@ -457,7 +456,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.dokument.zeroModel.datafrejm = result['zero']
         self.dokument.spanModel.datafrejm = result['span']
         # set clean modela za korekcije u dokument
-        self.dokument.korekcijaModel.datafrejm = pd.DataFrame(columns=['vrijeme', 'A', 'B', 'Sr', 'remove', 'calc'])
+#        self.dokument.korekcijaModel.datafrejm = pd.DataFrame(columns=['vrijeme', 'A', 'B', 'Sr', 'remove', 'calc'])
         self.set_data_models_to_canvas(self.dokument.koncModel,
                                        self.dokument.zeroModel,
                                        self.dokument.spanModel)

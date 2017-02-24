@@ -20,19 +20,20 @@ class MockZahtjev:
         self.podatak_adapter = PodatakAdapter()
         self.user = None
         self.pswd = None
+        self.basedir = '/home/kraljevic/razvoj/python/validacija_aplikacija/test_resources/'
 
     def logmein(self, auth):
         self.user, self.pswd = auth
 
     def get_broj_u_satu(self, program_mjerenja_id):
-        with open("/home/kraljevic/PycharmProjects/validacija_aplikacija/test_resources/broj_u_satu.json",
+        with open(self.basedir + "/broj_u_satu.json",
                   "r") as myfile:
             data = myfile.readline()
         out = json.loads(data)
         return int(out['brojUSatu'])
 
     def get_status_map(self):
-        with open("/home/kraljevic/PycharmProjects/validacija_aplikacija/test_resources/statusi.json", "r") as myfile:
+        with open(self.basedir + "/statusi.json", "r") as myfile:
             data = myfile.readline()
         x = json.loads(data)
         rezultat = {}
@@ -43,20 +44,20 @@ class MockZahtjev:
     def get_sirovi(self, program_mjerenja_id, datum):
         dd = datum[-2:]
         n = 1 + (int(datum[-2:]) - 6) % 10
-        fname = "/home/kraljevic/PycharmProjects/validacija_aplikacija/test_resources/p" + str(n) + ".json"
+        fname = self.basedir + "/p" + str(n) + ".json"
         with open(fname, "r") as myfile:
             data = myfile.readline()
         frejm = self.podatak_adapter.adaptiraj(data)
         return frejm
 
     def get_zero_span(self, program_mjerenja_id, datum, kolicina):
-        with open("/home/kraljevic/PycharmProjects/validacija_aplikacija/test_resources/zs.json", "r") as myfile:
+        with open(self.basedir + "/zs.json", "r") as myfile:
             data = myfile.readline()
         zero, span = self.zs_adapter.adaptiraj(data)
         return zero, span
 
     def get_programe_mjerenja(self):
-        with open("/home/kraljevic/PycharmProjects/validacija_aplikacija/test_resources/program.json", "r") as myfile:
+        with open(self.basedir + "/program.json", "r") as myfile:
             data = myfile.readline()
         out = self.program_adapter.adaptiraj(data)
         return out

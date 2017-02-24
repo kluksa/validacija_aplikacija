@@ -436,61 +436,18 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         frejm['LDL'] = ldl
         return frejm
 
-    def primjeni_korekciju_na_frejm(self, frejm):
-        # TODO zasto ovdje???? Ovo bi trebao raditi dokument. Ovo je najobicnija kontrola od tablice
-        """primjena korekcije na zadani frejm..."""
-        # pripremi frejm korekcije za rad
-        df = self._dataFrejm.copy()
-        # izbaci zadnji red (za dodavanje stvari...)
-        df = df.iloc[:-1, :]
-        TEST1 = len(df)  # broj redova tablice
-        # sort
-        df.dropna(axis=0, inplace=True)
-        df.sort_values(['vrijeme'], inplace=True)
-        df = df.set_index(df['vrijeme'])
-        # drop stupce koji su pomocni
-        df.drop(['remove', 'calc', 'vrijeme'], axis=1, inplace=True)
-        df['A'] = df['A'].astype(float)
-        df['B'] = df['B'].astype(float)
-        df['Sr'] = df['Sr'].astype(float)
-
-        TEST2 = len(df)  # broj redova tablice bez n/a
-        if TEST1 != TEST2:
-            raise ValueError('Parametri korekcije nisu dobro ispunjeni')
-        if (not len(df)) or (not len(frejm)):
-            # korekcija nije primjenjena jer je frejm sa parametrima prazan ili je sam frejm prazan
-            return frejm
-        try:
-            zadnji_indeks = list(df.index)[-1]
-            # sredi interpolaciju dodaj na kraj podatka zadnju vrijednost
-            kraj_podataka = frejm.index[-1]
-            df.loc[kraj_podataka, 'A'] = df.loc[zadnji_indeks, 'A']
-            df.loc[kraj_podataka:, 'B'] = df.loc[zadnji_indeks, 'B']
-            df.loc[kraj_podataka:, 'Sr'] = df.loc[zadnji_indeks, 'Sr']
-            # interpoliraj na minutnu razinu
-            saved_sr = df['Sr']
-            df = df.resample('Min').interpolate()
-            # sredi Sr da bude skokovit
-            for i in range(len(saved_sr) - 1):
-                ind1 = saved_sr.index[i]
-                ind2 = saved_sr.index[i + 1]
-                val = saved_sr.iloc[i]
-                df.loc[ind1:ind2, 'Sr'] = val
-            df = self.calc_ldl_values(df)
-            df = df.reindex(frejm.index)  # samo za definirane indekse...
-            # slozi podatke u input frejm
-            frejm['A'] = df['A']
-            frejm['B'] = df['B']
-            frejm['Sr'] = df['Sr']
-            frejm['LDL'] = df['LDL']
-            # izracunaj korekciju i apply
-            korekcija = frejm.iloc[:, 0] * frejm.loc[:, 'A'] + frejm.loc[:, 'B']
-            frejm['korekcija'] = korekcija
-            return frejm
-        except Exception as err:
-            logging.error(str(err), exc_info=True)
-            QtGui.QMessageBox.warning(QtGui.QMessageBox(), 'Problem', 'Problem kod racunanja korekcije')
-            return frejm
+    def primjeni_korekciju_na_frejm(self, df):
+        df = df.drop(['A','B','Sr'])
+        korr_df = self._dataFrejm.iloc[:-1, :]
+        korr_df = korr_df.set_index(pd.DatetimeIndex(korr_df['vrijeme']))
+        tdf = pd.DataFrame(index=df.index).join(korr_df, how='outer')
+        tdf['A'] = pd.to_numeric(tdf['A'])
+        tdf['B'] = pd.to_numeric(tdf['B'])
+        tdf['Sr'] = pd.to_numeric(tdf['Sr'])
+        df = df.join(tdf[['A', 'B']].interpolate(method='time').join(tdf[['Sr']].fillna(method='ffill')))
+        df['korekcija'] = df.iloc[:, 0] * df['A'] + df['B']
+        df['LDL'] = 3.33 * df['Sr'] / df['A']
+        return df
 
     def rowCount(self, parent=QtCore.QModelIndex()):
         return len(self._dataFrejm)
