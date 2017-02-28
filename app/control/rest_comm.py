@@ -57,6 +57,10 @@ class DataReaderAndCombiner(object):
                 #advance progress bar
                 self.progress.setValue(d)
             self.progress.close()
+            #drop duplicated indexes
+            masterKoncFrejm = masterKoncFrejm[~masterKoncFrejm.index.duplicated()]
+            masterSpanFrejm = masterSpanFrejm[~masterSpanFrejm.index.duplicated()]
+            masterZeroFrejm = masterZeroFrejm[~masterZeroFrejm.index.duplicated()]
             #broj podataka u satu...
             try:
                 frek = int(np.floor(60/self.citac.get_broj_u_satu(kanal)))
@@ -74,7 +78,6 @@ class DataReaderAndCombiner(object):
                 start = datetime.datetime.combine(od, datetime.time(0, 0, 0))
                 kraj = do + datetime.timedelta(1)
 
-
             fullraspon = pd.date_range(start=start, end=kraj, freq=frek)
             #reindex koncentracijski data zbog rupa u podacima (ako nedostaju rubni podaci)
             masterKoncFrejm = masterKoncFrejm.reindex(fullraspon)
@@ -91,6 +94,8 @@ class DataReaderAndCombiner(object):
 
     def sredi_missing_podatke(self, frejm):
         #indeks svi konc nan
+        frejm['koncentracija'] = frejm['koncentracija'].astype(np.float64)
+        frejm['status'] = frejm['status'].astype(np.float64)
         i0 = np.isnan(frejm['koncentracija'])
         #indeks konc i status su nan
         i1 = (np.isnan(frejm['koncentracija']))&(np.isnan(frejm['status']))
@@ -152,7 +157,6 @@ class RESTZahtjev(object):
         msg = 'status={0} , reason={1}, url={2}'.format(str(r.status_code), str(r.reason), url)
         assert r.ok == True, msg
         out = json.loads(r.text)
-        print(r.text)
         return int(out['brojUSatu'])
 
     def get_statusMap(self):
@@ -321,7 +325,6 @@ class RESTZahtjev(object):
                          'statusInt':'status'}
             df.rename(columns=renameMap, inplace=True)
             df['koncentracija'] = df['koncentracija'].map(self._nan_conversion)
-            #df['flag'] = df['flag'].map(self._valjan_conversion)
             df['flag'] = df['flag'].map(self._valjan_conversion)
             df['korekcija'] = np.NaN #placeholder
             df['A'] = np.NaN #placeholder

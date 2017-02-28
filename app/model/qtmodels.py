@@ -16,7 +16,6 @@ class TreeItem(object):
     self._children --> LISTA djece (svi child itemi su TreeItem objekti)
     self._data --> kontenjer koji sadrzi neke podatke (npr, lista, dict...)
     """
-
     def __init__(self, data, parent=None):
         self._parent = parent
         self._data = data
@@ -403,11 +402,15 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
         return len(self._dataFrejm)
 
     def columnCount(self, parent=QtCore.QModelIndex()):
-        return 6
+        # user flag added to end
+        return 7
 
     def flags(self, index):
         if index.isValid():
-            return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable
+            if index.column() == 6: # user flag change
+                return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEditable
+            else:
+                return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable
 
     def data(self, index, role):
         if not index.isValid():
@@ -422,8 +425,29 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
                 return str(round(value, 3))  # korekcija
             elif col == 3:
                 return value  # status string
+            elif col == 6:
+                return str(self._dataFrejm.iloc[row, 11]) # user flag
             else:
                 return str(value)
+
+    def setData(self, index, value, role=QtCore.Qt.EditRole):
+        # user flag change
+        if not index.isValid():
+            return False
+        red = index.row()
+        stupac = index.column()
+        if stupac == 6:
+            try:
+                value = float(value) #convert to float (sort of input validation)
+                t = self._dataFrejm.index[red]
+                argDict = {'od':t, 'do':t, 'noviFlag':value}
+                self.promjeni_flag(argDict)
+                return True
+            except Exception as err:
+                logging.error(str(err), exc_info=True)
+                return False
+        else:
+            return False
 
     def headerData(self, section, orientation, role):
         if orientation == QtCore.Qt.Vertical:
@@ -431,7 +455,10 @@ class KoncFrameModel(QtCore.QAbstractTableModel):
                 return str(self._dataFrejm.index[section].strftime('%Y-%m-%d %H:%M:%S'))
         if orientation == QtCore.Qt.Horizontal:
             if role == QtCore.Qt.DisplayRole:
-                return str(self._dataFrejm.columns[section])
+                if section == 6: # user flag change
+                    return str(self._dataFrejm.columns[11])
+                else:
+                    return str(self._dataFrejm.columns[section])
 
     def _check_bit(self, broj, bit_position):
         """
