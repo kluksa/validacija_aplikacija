@@ -16,7 +16,7 @@ def export_frame(frame, folder, fname):
 
 def export_korekcije(dokument, fname):
     if fname:
-        frejmKor = dokument.korekcijaModel.datafrejm
+        frejmKor = dokument._corr_df
         # izbaci zadnji red (za dodavanje stvari...)
         frejmKor = frejmKor.iloc[:-1, :]
         # drop nepotrebne stupce (remove/calc placeholderi)

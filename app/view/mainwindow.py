@@ -10,15 +10,13 @@ from app.control.rest_comm import get_comm_object
 from app.control.satniagregator import SatniAgregator
 from app.model.dokument import Dokument
 from app.model.konfig_objekt import config, GrafKonfig
-from app.model.qtmodels import GumbDelegate, CalcGumbDelegate, KoncTableModel
-from app.view.abcalc import ABKalkulator
+from app.model.qtmodels import KoncTableModel
 from app.view.auth_login import DijalogLoginAuth
 from app.view.canvas import GrafDisplayWidget
 from app.view.input_output import DownloadPodatakaWorker
 from app.view.kanal_dijalog import KanalDijalog
 import app.view.input_output as input_output
-
-
+201
 MAIN_BASE, MAIN_FORM = uic.loadUiType('./app/view/ui_files/mainwindow.ui')
 
 
@@ -26,7 +24,6 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
     def __init__(self, parent=None):
         super(MAIN_BASE, self).__init__(parent)
         self.cfgGraf = GrafKonfig('graf_params.cfg')
-        #        util.setup_logging(config.log.file, config.log.level, config.log.mode)
         self.setupUi(self)
         self.dokument = Dokument()
 
@@ -36,32 +33,60 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.grafLayout.addWidget(self.kanvas)
 
         # dependency injection kroz konstruktor je puno bolji pattern od slanja konfig objekta
-
-
         self.restRequest = get_comm_object(config)
 
         self.progress_bar = DownloadProgressBar(self.restRequest)
 
-        #self.dataDisplay.setModel(KoncTableModel(self.dokument.koncModel.datafrejm))
-        self.korekcijaDisplay.setModel(self.dokument.korekcijaModel)
-
-        self.sredi_delegate_za_tablicu()
-
         self.program_mjerenja_dlg = KanalDijalog()
 
-        # custom persistent delegates...
         # TODO! triple click fail... treba srediti persistent editor na cijeli stupac
         # self.korekcijaDisplay.setItemDelegateForColumn(4, GumbDelegate(self))
         self.satniAgregator = SatniAgregator()
         self.setup_connections()
 
-    def primjeni_korekciju(self):
+    def setup_connections(self):
+        self.action_quit.triggered.connect(self.close)
+        # gumbi za add/remove/edit parametre korekcije i primjenu korekcije
+        self.buttonExport.clicked.connect(self.on_export_korekcije)
+        self.buttonSerialize.clicked.connect(self.spremanje_podataka_u_file)
+        self.buttonUnserialize.clicked.connect(self.ucitavanje_podataka_iz_filea)
+        self.buttonExportAgregirane.clicked.connect(self.export_satno_agregiranih)
+        self.buttonUcitaj.clicked.connect(self.ucitaj_podatke)
+        self.buttonPrimjeniKorekciju.clicked.connect(self.on_primjeni_korekciju)
+
+        self.progress_bar.download_podataka_worker.gotovo_signal.connect(self.ucitavanje_gotovo)
+        self.dokument.novi_podaci.connect(self.update_svega)
+        self.korekcijaDisplay.model().dataChanged.connect(self.handle_korekcija_change)
+
+
+        # navigacija graf-tablica sa podacima
+        self.connect(self.kanvas.figure_canvas,
+                     QtCore.SIGNAL('table_select_podatak(PyQt_PyObject)'),
+                     self.zoom_to_model_timestamp)
+        self.connect(self.kanvas,
+                     QtCore.SIGNAL('graf_is_modified(PyQt_PyObject)'),
+                     self.update_labele_obuhvata)
+        # TODO! lose ali brzi fix
+        self.connect(self.kanvas.figure_canvas,
+                     QtCore.SIGNAL('update_konc_label(PyQt_PyObject)'),
+                     self.update_konc_labels)
+
+        self.connect(self.kanvas.figure_canvas,
+                     QtCore.SIGNAL('update_zero_label(PyQt_PyObject)'),
+                     self.update_zero_labels)
+
+        self.connect(self.kanvas.figure_canvas,
+                     QtCore.SIGNAL('update_span_label(PyQt_PyObject)'),
+                     self.update_span_labels)
+
+    def on_primjeni_korekciju(self):
         try:
             QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+            self.dokument.set_korekcija(self.korekcijaDisplay.model().datafrejm)
             self.dokument.primjeni_korekciju()
             # naredi ponovno crtanje
             xraspon = self.get_current_x_zoom_range()
-            self.draw_graf()
+            self.kanvas.crtaj()
             self.set_current_x_zoom_range(xraspon)
         except Exception as err:
             msg = "General exception. \n\n{0}".format(str(err))
@@ -71,7 +96,7 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         finally:
             QtGui.QApplication.restoreOverrideCursor()
 
-    def export_korekcije(self):
+    def on_export_korekcije(self):
         fajlNejm = QtGui.QFileDialog.getSaveFileName(self,
                                                      "export korekcije")
         if fajlNejm:
@@ -113,10 +138,47 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
             finally:
                 QtGui.QApplication.restoreOverrideCursor()
 
+    def ucitavanje_podataka_iz_filea(self):
+        """ucitavanje podataka iz prethodno spremljenog filea"""
+        try:
+            # get file za load
+            fajlNejm = QtGui.QFileDialog.getOpenFileName(self,
+                                                         "Ucitaj podatke")
+            if fajlNejm:
+                # spinning cursor...
+                QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+
+                with open(fajlNejm, 'rb') as fn:
+                    bstr = fn.read()
+                    self.dokument.set_pickleBinary(bstr)
+                self.korekcijaDisplay.model().datafrejm = self.dokument._corr_df
+
+                self.update_konc_labels(('n/a', 'n/a', 'n/a'))
+                self.update_zero_labels(('n/a', 'n/a', 'n/a'))
+                self.update_span_labels(('n/a', 'n/a', 'n/a'))
+
+
+                QtGui.QApplication.restoreOverrideCursor()
+                msg = 'Podaci su uspjesno ucitani\nfile={0}'.format(str(fajlNejm))
+                QtGui.QMessageBox.information(QtGui.QWidget(), 'Info', msg)
+            else:
+                pass  # canceled
+        except Exception as err:
+            msg = "General exception. \n\n{0}".format(str(err))
+            logging.error(str(msg), exc_info=True)
+            QtGui.QApplication.restoreOverrideCursor()
+            self.update_opis_grafa("n/a")
+            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
+        finally:
+            QtGui.QApplication.restoreOverrideCursor()
+
+
+
     def spremanje_podataka_u_file(self):
         """spremanje podataka u file"""
 
         # get file sa save
+        self.dokument.set_korekcija(self.korekcijaDisplay.model().datafrejm)
         fajlNejm = QtGui.QFileDialog.getSaveFileName(self,
                                                      "Spremi podatke")
         if fajlNejm:
@@ -140,56 +202,6 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
             finally:
                 QtGui.QApplication.restoreOverrideCursor()
 
-    def ucitavanje_podataka_iz_filea(self):
-        """ucitavanje podataka iz prethodno spremljenog filea"""
-        try:
-            # get file za load
-            fajlNejm = QtGui.QFileDialog.getOpenFileName(self,
-                                                         "Ucitaj podatke")
-            if fajlNejm:
-                # spinning cursor...
-                QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
-
-                with open(fajlNejm, 'rb') as fn:
-                    bstr = fn.read()
-                    self.dokument.set_pickleBinary(bstr)
-
-                self.update_opis_grafa(self.dokument.koncModel.opis)
-                self.update_konc_labels(('n/a', 'n/a', 'n/a'))
-                self.update_zero_labels(('n/a', 'n/a', 'n/a'))
-                self.update_span_labels(('n/a', 'n/a', 'n/a'))
-
-                # predavanje (konc, zero, span) modela kanvasu za crtanje (primarni trigger za clear & redraw)
-                self.set_data_models_to_canvas(self.dokument.koncModel,
-                                               self.dokument.zeroModel,
-                                               self.dokument.spanModel)
-                self.dataDisplay.setModel(KoncTableModel(self.dokument.koncModel.datafrejm))
-
-                self.sredi_delegate_za_tablicu()
-
-                QtGui.QApplication.restoreOverrideCursor()
-                msg = 'Podaci su uspjesno ucitani\nfile={0}'.format(str(fajlNejm))
-                QtGui.QMessageBox.information(QtGui.QWidget(), 'Info', msg)
-            else:
-                pass  # canceled
-        except Exception as err:
-            msg = "General exception. \n\n{0}".format(str(err))
-            logging.error(str(msg), exc_info=True)
-            QtGui.QApplication.restoreOverrideCursor()
-            self.update_opis_grafa("n/a")
-            QtGui.QMessageBox.warning(QtGui.QWidget(), 'Problem', msg)
-        finally:
-            QtGui.QApplication.restoreOverrideCursor()
-
-    def sredi_delegate_za_tablicu(self):
-        model = self.korekcijaDisplay.model()
-        self.korekcijaDisplay.setItemDelegateForColumn(4, GumbDelegate(self))
-        self.korekcijaDisplay.setItemDelegateForColumn(5, CalcGumbDelegate(self))
-        for red in range(0, model.rowCount()):
-            self.korekcijaDisplay.closePersistentEditor(model.index(red, 4))
-            self.korekcijaDisplay.closePersistentEditor(model.index(red, 5))
-            self.korekcijaDisplay.openPersistentEditor(model.index(red, 4))
-            self.korekcijaDisplay.openPersistentEditor(model.index(red, 5))
 
     def get_current_x_zoom_range(self):
         return self.kanvas.get_xzoom_range()
@@ -197,81 +209,8 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
     def set_current_x_zoom_range(self, x):
         self.kanvas.set_xzoom_range(x)
 
-    def get_AB_values(self):
-        self.dijalogAB = ABKalkulator()
-        response = self.dijalogAB.exec_()
-        if response:
-            return self.dijalogAB.AB
-        else:
-            return None
-
-    def setup_connections(self):
-        self.action_quit.triggered.connect(self.close)
-        # gumbi za add/remove/edit parametre korekcije i primjenu korekcije
-        self.buttonUcitaj.clicked.connect(self.handle_ucitaj)
-        self.buttonExport.clicked.connect(self.handle_export)
-        self.buttonSerialize.clicked.connect(self.handle_spremi_dokument)
-        self.buttonUnserialize.clicked.connect(self.handle_load_dokument)
-        self.buttonExportAgregirane.clicked.connect(self.handle_export_agregiranih)
-        # gumbi za add/remove/edit parametre korekcije i primjenu korekcije
-
-        self.buttonUcitaj.clicked.connect(self.ucitaj_podatke2)
-        self.buttonPrimjeniKorekciju.clicked.connect(self.primjeni_korekciju)
-        # quit
-        self.connect(self,
-                     QtCore.SIGNAL('terminate_app'),
-                     self.close)
-        self.connect(self,
-                     QtCore.SIGNAL('initiate_login(PyQt_PyObject)'),
-                     self.log_in)
-
-        # # load in novih podataka sa REST-a
-        # self.connect(self.gui,
-        #              QtCore.SIGNAL('ucitaj_minutne'),
-        #              self.ucitavanje_podataka_sa_resta)
-
-        # navigacija graf-tablica sa podacima
-        self.connect(self.kanvas.figure_canvas,
-                     QtCore.SIGNAL('table_select_podatak(PyQt_PyObject)'),
-                     self.zoom_to_model_timestamp)
-
-        # # primjena korekcije
-        # self.connect(self.gui,
-        #              QtCore.SIGNAL('primjeni_korekciju'),
-        #              self.primjeni_korekciju)
-        # serijalizacija dokumenta
-        self.connect(self,
-                     QtCore.SIGNAL('serijaliziraj_dokument'),
-                     self.spremanje_podataka_u_file)
-        # unserijalizacija dokumenta
-        self.connect(self,
-                     QtCore.SIGNAL('unserijaliziraj_dokument'),
-                     self.ucitavanje_podataka_iz_filea)
-        # export satno agregiranih
-        self.connect(self,
-                     QtCore.SIGNAL('export_satno_agregiranih'),
-                     self.export_satno_agregiranih)
-
-        self.connect(self.kanvas,
-                     QtCore.SIGNAL('graf_is_modified(PyQt_PyObject)'),
-                     self.update_labele_obuhvata)
-        # TODO! lose ali brzi fix
-        self.connect(self.kanvas.figure_canvas,
-                     QtCore.SIGNAL('update_konc_label(PyQt_PyObject)'),
-                     self.update_konc_labels)
-
-        self.connect(self.kanvas.figure_canvas,
-                     QtCore.SIGNAL('update_zero_label(PyQt_PyObject)'),
-                     self.update_zero_labels)
-
-        self.connect(self.kanvas.figure_canvas,
-                     QtCore.SIGNAL('update_span_label(PyQt_PyObject)'),
-                     self.update_span_labels)
-
-        self.connect(self.dokument.korekcijaModel,
-                     QtCore.SIGNAL('update_persistent_delegate'),
-                     self.sredi_delegate_za_tablicu)
-        self.progress_bar.download_podataka_worker.gotovo_signal.connect(self.ucitavanje_gotovo)
+    def handle_korekcija_change(self):
+        self.dokument.set_korekcija(self.korekcijaDisplay.model().datafrejm)
 
     def update_opis_grafa(self, opis):
         self.labelOpisGrafa.setText(opis)
@@ -324,33 +263,6 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.action_ucitaj.setEnabled(x)
         self.action_export.setEnabled(x)
 
-    def handle_ucitaj(self):
-        self.emit(QtCore.SIGNAL('ucitaj_minutne'))
-
-    def handle_export(self):
-        self.export_korekcije()
-
-    def handle_export_agregiranih(self):
-        self.emit(QtCore.SIGNAL('export_satno_agregiranih'))
-
-    def handle_primjeni_korekciju(self):
-        self.emit(QtCore.SIGNAL('primjeni_korekciju'))
-
-    def handle_spremi_dokument(self):
-        self.emit(QtCore.SIGNAL('serijaliziraj_dokument'))
-
-    def handle_load_dokument(self):
-        self.emit(QtCore.SIGNAL('unserijaliziraj_dokument'))
-
-    def draw_graf(self):
-        self.kanvas.crtaj()
-
-    def set_data_models_to_canvas(self, konc, zero, span):
-        """
-        setter modela za koncentraciju, zero i span u kanvas modela
-        """
-        self.kanvas.set_models(konc, zero, span)
-
     def zoom_to_model_timestamp(self, red):
         try:
             self.dataDisplay.selectRow(red)
@@ -394,11 +306,9 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
             else:
                 QtGui.QApplication.quit()
 
-
     def init_program_mjerenja(self):
         try:
             QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
-            ####
             self.program_mjerenja_dlg.set_program(self.restRequest.get_programe_mjerenja())
         except (AssertionError, RequestException) as e1:
             msg = "Problem kod dohvaćanja podataka o mjerenjima.\n\n{0}".format(str(e1))
@@ -425,25 +335,20 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
             do)
         return out
 
-    def ucitaj_podatke2(self):
+    def ucitaj_podatke(self):
         if self.program_mjerenja_dlg.exec_():
             self.dokument.vrijeme_od = self.program_mjerenja_dlg.vrijemeOd
             self.dokument.vrijeme_do = self.program_mjerenja_dlg.vrijemeDo
             self.dokument.aktivni_kanal = self.program_mjerenja_dlg.izabraniKanal
-        else:
-            return
 
-        self.update_konc_labels(('n/a', 'n/a', 'n/a'))
-        self.update_zero_labels(('n/a', 'n/a', 'n/a'))
-        self.update_span_labels(('n/a', 'n/a', 'n/a'))
-        self.update_opis_grafa(self.set_kanal_info_string(self.dokument.aktivni_kanal,
-                                                          self.dokument.vrijeme_od, self.dokument.vrijeme_do))
-
-        QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
-
-        self.progress_bar.ucitaj(self.dokument.aktivni_kanal, self.dokument.vrijeme_od,
-                                          self.dokument.vrijeme_do)
-        # self.download_podataka_worker.start()
+            self.update_konc_labels(('n/a', 'n/a', 'n/a'))
+            self.update_zero_labels(('n/a', 'n/a', 'n/a'))
+            self.update_span_labels(('n/a', 'n/a', 'n/a'))
+            self.update_opis_grafa(self.set_kanal_info_string(self.dokument.aktivni_kanal,
+                                                              self.dokument.vrijeme_od, self.dokument.vrijeme_do))
+            QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+            self.progress_bar.ucitaj(self.dokument.aktivni_kanal, self.dokument.vrijeme_od,
+                                              self.dokument.vrijeme_do)
 
     def ucitavanje_u_tijeku(self):
         QtGui.QMessageBox.warning(self, 'Učitavanje u tijeku',
@@ -452,15 +357,16 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
     def ucitavanje_gotovo(self, result):
         self.progress_bar.close()
         QtGui.QApplication.restoreOverrideCursor()
-        self.dokument.koncModel.datafrejm = result['mjerenja']
-        self.dokument.zeroModel.datafrejm = result['zero']
-        self.dokument.spanModel.datafrejm = result['span']
-        # set clean modela za korekcije u dokument
-#        self.dokument.korekcijaModel.datafrejm = pd.DataFrame(columns=['vrijeme', 'A', 'B', 'Sr', 'remove', 'calc'])
-        self.set_data_models_to_canvas(self.dokument.koncModel,
+        self.dokument.prihvat_podataka(result)
+
+    def update_svega(self):
+# ovo je lose i prilicno rudimentarno
+        self.update_opis_grafa(self.dokument.koncModel.opis)
+        self.kanvas.set_models(self.dokument.koncModel,
                                        self.dokument.zeroModel,
                                        self.dokument.spanModel)
-        self.dataDisplay.setModel(KoncTableModel(self.dokument.koncModel.datafrejm))
+        self.dataDisplay.setModel(KoncTableModel(self.dokument._konc_df))
+
 
 class DownloadProgressBar(QtGui.QProgressBar):
     def __init__(self, restRequest, parent=None):
