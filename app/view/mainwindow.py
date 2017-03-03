@@ -9,30 +9,30 @@ from requests.exceptions import RequestException
 from app.control.rest_comm import get_comm_object
 from app.control.satniagregator import SatniAgregator
 from app.model.dokument import Dokument
-from app.model.konfig_objekt import config, GrafKonfig
+from app.model.konfig_objekt import config
 from app.model.qtmodels import KoncTableModel
 from app.view.auth_login import DijalogLoginAuth
 from app.view.canvas import GrafDisplayWidget
 from app.view.input_output import DownloadPodatakaWorker
 from app.view.kanal_dijalog import KanalDijalog
 import app.view.input_output as input_output
-201
+import numpy as np
+
 MAIN_BASE, MAIN_FORM = uic.loadUiType('./app/view/ui_files/mainwindow.ui')
 
 
 class MainWindow(MAIN_BASE, MAIN_FORM):
     def __init__(self, parent=None):
         super(MAIN_BASE, self).__init__(parent)
-        self.cfgGraf = GrafKonfig('graf_params.cfg')
         self.setupUi(self)
         self.dokument = Dokument()
 
         self.toggle_logged_in_state(False)
+
         self.kanvas = GrafDisplayWidget(config.icons.span_select_icon,
-                                        config.icons.x_zoom_icon, self.cfgGraf)
+                                        config.icons.x_zoom_icon, config.graf)
         self.grafLayout.addWidget(self.kanvas)
 
-        # dependency injection kroz konstruktor je puno bolji pattern od slanja konfig objekta
         self.restRequest = get_comm_object(config)
 
         self.progress_bar = DownloadProgressBar(self.restRequest)
@@ -56,28 +56,39 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
 
         self.progress_bar.download_podataka_worker.gotovo_signal.connect(self.ucitavanje_gotovo)
         self.dokument.novi_podaci.connect(self.update_svega)
-        self.korekcijaDisplay.model().dataChanged.connect(self.handle_korekcija_change)
 
-
-        # navigacija graf-tablica sa podacima
         self.connect(self.kanvas.figure_canvas,
                      QtCore.SIGNAL('table_select_podatak(PyQt_PyObject)'),
                      self.zoom_to_model_timestamp)
-        self.connect(self.kanvas,
-                     QtCore.SIGNAL('graf_is_modified(PyQt_PyObject)'),
+        self.connect(self.kanvas.figure_canvas,
+                     QtCore.SIGNAL('update_data_point_count(PyQt_PyObject)'),
                      self.update_labele_obuhvata)
-        # TODO! lose ali brzi fix
         self.connect(self.kanvas.figure_canvas,
-                     QtCore.SIGNAL('update_konc_label(PyQt_PyObject)'),
-                     self.update_konc_labels)
+                     QtCore.SIGNAL('klik_na_grafu(PyQt_PyObject)'),
+                     self.on_klik_na_grafu)
 
-        self.connect(self.kanvas.figure_canvas,
-                     QtCore.SIGNAL('update_zero_label(PyQt_PyObject)'),
-                     self.update_zero_labels)
+    def get_t_v(self,df, tpoint):
+        if df.empty:
+            return None, None
+        idx = np.argmin(np.abs(df.index.to_pydatetime() - tpoint))
+        v = df.iloc[idx]
+        t = df.index[idx]
+        return t,v
 
-        self.connect(self.kanvas.figure_canvas,
-                     QtCore.SIGNAL('update_span_label(PyQt_PyObject)'),
-                     self.update_span_labels)
+    def on_klik_na_grafu(self, xpoint):
+        xpoint = xpoint.replace(tzinfo=None)
+        self.update_konc_labels(*(self.get_t_v(self.dokument._konc_df, xpoint)))
+        self.update_zero_labels(*(self.get_t_v(self.dokument._zero_df, xpoint)))
+        self.update_span_labels(*(self.get_t_v(self.dokument._zero_df, xpoint)))
+
+    def zoom_to_model_timestamp(self, red):
+        try:
+            idx = np.argmin(np.abs(self.dokument._konc_df.index.to_pydatetime() - red.replace(tzinfo=None)))
+            self.dataDisplay.selectRow(idx)
+        except (TypeError, LookupError):
+            # silent pass, error happens when None or out of bounds point is selected
+            pass
+
 
     def on_primjeni_korekciju(self):
         try:
@@ -85,9 +96,9 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
             self.dokument.set_korekcija(self.korekcijaDisplay.model().datafrejm)
             self.dokument.primjeni_korekciju()
             # naredi ponovno crtanje
-            xraspon = self.get_current_x_zoom_range()
+            #xraspon = self.get_current_x_zoom_range()
             self.kanvas.crtaj()
-            self.set_current_x_zoom_range(xraspon)
+            #self.set_current_x_zoom_range(xraspon)
         except Exception as err:
             msg = "General exception. \n\n{0}".format(str(err))
             logging.error(str(err), exc_info=True)
@@ -153,9 +164,9 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
                     self.dokument.set_pickleBinary(bstr)
                 self.korekcijaDisplay.model().datafrejm = self.dokument._corr_df
 
-                self.update_konc_labels(('n/a', 'n/a', 'n/a'))
-                self.update_zero_labels(('n/a', 'n/a', 'n/a'))
-                self.update_span_labels(('n/a', 'n/a', 'n/a'))
+                self.update_konc_labels(None, None)
+                self.update_zero_labels(None, None)
+                self.update_span_labels(None, None)
 
 
                 QtGui.QApplication.restoreOverrideCursor()
@@ -209,29 +220,23 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
     def set_current_x_zoom_range(self, x):
         self.kanvas.set_xzoom_range(x)
 
-    def handle_korekcija_change(self):
-        self.dokument.set_korekcija(self.korekcijaDisplay.model().datafrejm)
-
     def update_opis_grafa(self, opis):
         self.labelOpisGrafa.setText(opis)
 
-    def update_konc_labels(self, tpl):
-        vrijeme, val, kor = tpl
-        self.koncValLabel.setText(str(val))
-        self.koncTimeLabel.setText(str(vrijeme))
-        self.koncKorLabel.setText(str(kor))
+    def update_konc_labels(self, vrijeme, val):
+        self.koncTimeLabel.setText('n/a' if vrijeme is None else str(vrijeme))
+        self.koncValLabel.setText('n/a' if val is None else str(val['vrijednost']))
+        self.koncKorLabel.setText('n/a' if val is None else str(val['korekcija']))
 
-    def update_zero_labels(self, tpl):
-        vrijeme, val, kor = tpl
-        self.zeroValLabel.setText(str(val))
-        self.zeroTimeLabel.setText(str(vrijeme))
-        self.zeroKorLabel.setText(str(kor))
+    def update_zero_labels(self, vrijeme, val):
+        self.zeroTimeLabel.setText('n/a' if vrijeme is None else str(vrijeme))
+        self.zeroValLabel.setText('n/a' if val is None else str(val['vrijednost']))
+        self.zeroKorLabel.setText('n/a' if val is None else str(val['korekcija']))
 
-    def update_span_labels(self, tpl):
-        vrijeme, val, kor = tpl
-        self.spanValLabel.setText(str(val))
-        self.spanTimeLabel.setText(str(vrijeme))
-        self.spanKorLabel.setText(str(kor))
+    def update_span_labels(self, vrijeme, val):
+        self.spanTimeLabel.setText('n/a' if vrijeme is None else str(vrijeme))
+        self.spanValLabel.setText('n/a' if val is None else str(val['vrijednost']))
+        self.spanKorLabel.setText('n/a' if val is None else str(val['korekcija']))
 
     def update_labele_obuhvata(self, mapa):
         ocekivano = mapa['ocekivano']
@@ -263,12 +268,6 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         self.action_ucitaj.setEnabled(x)
         self.action_export.setEnabled(x)
 
-    def zoom_to_model_timestamp(self, red):
-        try:
-            self.dataDisplay.selectRow(red)
-        except (TypeError, LookupError):
-            # silent pass, error happens when None or out of bounds point is selected
-            pass
 
     def closeEvent(self, event):
         """
@@ -277,14 +276,13 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
         reply = QtGui.QMessageBox.question(
             self,
             'Potvrdi izlaz:',
-            'Da li ste sigurni da hocete ugasiti aplikaciju?',
+            'Jeste li sigurni da hocete ugasiti aplikaciju?',
             QtGui.QMessageBox.Yes,
             QtGui.QMessageBox.No)
         if reply == QtGui.QMessageBox.Yes:
             # overwite graf konfig file...
-            self.cfgGraf.save_to_file()
+            config.save_to_file()
             event.accept()
-            self.emit(QtCore.SIGNAL('gui_terminated'))
         else:
             event.ignore()
 
@@ -341,9 +339,9 @@ class MainWindow(MAIN_BASE, MAIN_FORM):
             self.dokument.vrijeme_do = self.program_mjerenja_dlg.vrijemeDo
             self.dokument.aktivni_kanal = self.program_mjerenja_dlg.izabraniKanal
 
-            self.update_konc_labels(('n/a', 'n/a', 'n/a'))
-            self.update_zero_labels(('n/a', 'n/a', 'n/a'))
-            self.update_span_labels(('n/a', 'n/a', 'n/a'))
+            self.update_konc_labels(None, None)
+            self.update_zero_labels(None, None)
+            self.update_span_labels(None, None)
             self.update_opis_grafa(self.set_kanal_info_string(self.dokument.aktivni_kanal,
                                                               self.dokument.vrijeme_od, self.dokument.vrijeme_do))
             QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)

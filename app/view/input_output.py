@@ -94,12 +94,9 @@ class DownloadPodatakaWorker(QtCore.QObject):
 
     def sredi_missing_podatke(self, frejm):
         # indeks svi konc nan
-        i0 = np.isnan(frejm['koncentracija'])
-        i1 = np.isnan(frejm['status'])
-        # indeks konc i status su nan
-        i1 = (np.isnan(frejm['koncentracija'])) & (np.isnan(frejm['status']))
-        # indeks konc je nan, status nije
-        i2 = (np.isnan(frejm['koncentracija'])) & ([not m for m in np.isnan(frejm['status'])])
+
+        i0 = pd.isnull(frejm['vrijednost'])
+        i1 = pd.isnull(frejm['status'])
         i2 = i0 & ~ i1
 
         frejm.loc[i0 & i1, 'status'] = 32768

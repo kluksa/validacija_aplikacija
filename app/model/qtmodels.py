@@ -31,7 +31,7 @@ class KoncFrameModel(QtCore.QObject):
         QtCore.QObject.__init__(self, parent)
         # TODO! hardcoding = bad...
         self.dokument = dokument
-        self._expectedCols = ['koncentracija', 'korekcija', 'flag', 'statusString',
+        self._expectedCols = ['vrijednost', 'korekcija', 'flag', 'statusString',
                               'status', 'id', 'A', 'B', 'Sr', 'LDL']
         self._dataFrejm = pd.DataFrame(columns=self._expectedCols)
         self._opis = "Postaja , naziv formula ( mjerna jedinica )"
@@ -73,7 +73,7 @@ class KoncFrameModel(QtCore.QObject):
             self._dataFrejm.loc[indeks_korekcija_ispod_ldl, 'flag'] = -1
             # sredi status string
             self._dataFrejm = self.sredi_status_stringove(self._dataFrejm)
-        #            self.layoutChanged.emit()
+        # self.layoutChanged.emit()
         else:
             raise TypeError('Not a pandas DataFrame object'.format(type(x)))
 
@@ -136,8 +136,8 @@ class KoncFrameModel(QtCore.QObject):
         slajs = slajs[slajs.index <= t2]
         slajs = slajs[slajs['flag'] >= 0]
         if len(slajs):
-            min_c = np.nanmin(slajs['koncentracija'])
-            max_c = np.nanmax(slajs['koncentracija'])
+            min_c = np.nanmin(slajs['vrijednost'])
+            max_c = np.nanmax(slajs['vrijednost'])
             min_k = np.nanmin(slajs['korekcija'])
             max_k = np.nanmax(slajs['korekcija'])
             ymin = np.nanmin([min_c, min_k])
@@ -228,7 +228,7 @@ class KoncTableModel(QtCore.QAbstractTableModel):
         return len(self._dataFrejm)
 
     def columnCount(self, parent=QtCore.QModelIndex()):
-        return 6
+        return 5
 
     def data(self, index, role):
         if not index.isValid():
@@ -239,8 +239,12 @@ class KoncTableModel(QtCore.QAbstractTableModel):
             value = self._dataFrejm.iloc[row, col]
             if col == 0 or col == 1:
                 return "{0:.2f}".format(value)  # koncentracija
-            elif col == 3:
+            elif col == 2:
                 return "{0:.0f}".format(value)  # status string
+            elif col == 3:
+                return value
+            elif col == 4:
+                return "{0:.0f}".format(value)
             else:
                 return str(value)
 
@@ -269,7 +273,7 @@ class ZeroSpanFrameModel(QtCore.QObject):
         # TODO! hardcoding = bad...
         super().__init__(parent)
         self.dokument = dokument
-        self._expectedCols = [str(tip), 'korekcija', 'minDozvoljeno',
+        self._expectedCols = ['vrijednost', 'korekcija', 'minDozvoljeno',
                               'maxDozvoljeno', 'A', 'B', 'Sr', 'LDL']
         self._dataFrejm = pd.DataFrame(columns=self._expectedCols)
         if frejm is None:
@@ -284,7 +288,7 @@ class ZeroSpanFrameModel(QtCore.QObject):
     def datafrejm(self, x):
         if isinstance(x, pd.core.frame.DataFrame):
             self._dataFrejm = x[self._expectedCols]  # reodrer / crop columns
-        #            self.layoutChanged.emit()
+        # self.layoutChanged.emit()
         else:
             raise TypeError('Not a pandas DataFrame object'.format(type(x)))
 
@@ -322,42 +326,6 @@ class ZeroSpanFrameModel(QtCore.QObject):
                 break
         return out
 
-    def get_najblizu_vrijednost(self, vrijeme):
-        """getter najblize vijednosti zero ili span vremenskom indeksu tajm (pd.tslib.Timestamp)"""
-        manji = self._dataFrejm[self._dataFrejm.index <= vrijeme]
-        if len(manji):
-            t1 = manji.index[-1]
-            v1 = manji.loc[t1, self._expectedCols[0]]
-            v1k = manji.loc[t1, 'korekcija']
-        else:
-            t1 = None
-            v1 = None
-            v1k = None
-        # svi veci od tajm
-        veci = self._dataFrejm[self._dataFrejm.index > vrijeme]
-        if len(veci):
-            t2 = veci.index[0]
-            v2 = veci.loc[t2, self._expectedCols[0]]
-            v2k = manji.loc[t1, 'korekcija']
-        else:
-            t2 = None
-            v2 = None
-            v2k = None
-
-        if t1 is not None and t2 is None:
-            return t1, v1, v1k
-        elif t1 is None and t2 is not None:
-            return t2, v2, v2k
-        elif t1 is None and t2 is None:
-            return 'n/a', 'n/a', 'n/a'
-        else:
-            d1 = (vrijeme - t1).total_seconds()
-            d2 = (t2 - vrijeme).total_seconds()
-            if d1 > d2:
-                return t2, v2, v2k
-            else:
-                return t1, v1, v1k
-
     def get_autoscale_y_range(self, t1, t2):
         """getter y raspona podataka izmedju vremena t1 i t2"""
         slajs = self._dataFrejm[self._dataFrejm.index >= t1]
@@ -368,12 +336,3 @@ class ZeroSpanFrameModel(QtCore.QObject):
             return ymin, ymax
         else:
             return np.NaN, np.NaN
-
-    def update_korekciju_i_ldl(self, kor, ldl, a, b, sr):
-        # TODO!
-        self._dataFrejm['korekcija'] = kor
-        self._dataFrejm['LDL'] = ldl
-        self._dataFrejm['A'] = a
-        self._dataFrejm['B'] = b
-        self._dataFrejm['Sr'] = sr
-        self.layoutChanged.emit()

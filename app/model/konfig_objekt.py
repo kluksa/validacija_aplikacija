@@ -4,11 +4,59 @@ import configparser
 import matplotlib.colors as colors
 
 
-def init(dev = False):
+def init(dev=False):
     if dev:
         pass
 
+
 class Konfig:
+    class Graph:
+        def __init__(self, mapa):
+            self.label = mapa['label']
+            self.linestyle = mapa['linestyle']
+            self.drawstyle = mapa['drawstyle']
+            self.linewidth = float(mapa['linewidth'])
+            self.color = self.color_from_str(mapa['color'])
+            self.marker = mapa['marker']
+            self.markersize = float(mapa['markersize'])
+            self.markerfacecolor = self.color_from_str(mapa['markerfacecolor'])
+            self.markeredgecolor = self.color_from_str(mapa['markeredgecolor'])
+
+        def get_options(self):
+            mapa = {'label': self.label, 'linestyle': self.linestyle, 'drawstyle': self.drawstyle,
+                    'linewidth': self.linewidth, 'color': self.color, 'marker': self.marker,
+                    'markersize': self.markersize, 'markerfacecolor': self.markerfacecolor,
+                    'markeredgecolor': self.markeredgecolor}
+            return mapa
+
+        def color_from_str(self, out):
+            if "#" in out:
+                # convert from hex
+                return colors.hex2color(out)
+            else:
+                # tuple zagrade treba maknuti...
+                rgba = out.replace('(', '')
+                rgba = rgba.replace(')', '')
+                rgba = rgba.split(sep=',')
+                rgba = [float(i.strip()) for i in rgba]
+                if len(rgba) in [3, 4]:
+                    return tuple(rgba)
+                else:
+                    return None
+
+        def postavi_opcije(self, line):
+            if line is None:
+                return
+            self.label = line.get_label()
+            self.linestyle = line.get_linestyle()
+            self.drawstyle = line.get_drawstyle()
+            self.linewidth = line.get_linewidth()
+            self.color = line.get_color()
+            self.marker = line.get_marker()
+            self.markersize = line.get_markersize()
+            self.markerfacecolor = line.get_markerfacecolor()
+            self.markeredgecolor = line.get_markeredgecolor()
+
     class Log:
         LOG_LEVELS = {'DEBUG': logging.DEBUG,
                       'INFO': logging.INFO,
@@ -33,120 +81,38 @@ class Konfig:
             self.span_select_icon = mapa['spanSelectIcon']
             self.x_zoom_icon = mapa['xZoomIcon']
 
-    def __init__(self):
-        self._cfg = self.read_config(['konfig_params.cfg', 'graf_params.cfg'])
+    def __init__(self, fname='validacija.ini'):
+        self.fname = fname
+        self._cfg = configparser.ConfigParser()
+        self._cfg.read(self.fname)
         self.log = Konfig.Log(self._cfg['LOG_SETUP'])
         self.rest = Konfig.Rest(self._cfg['REST'])
         self.icons = Konfig.Icons(self._cfg['ICONS'])
+        self.graf = {'KONC': {}}
+        self.graf['KONC']['LDL'] = Konfig.Graph(self._cfg['KONC_LDL'])
+        self.graf['KONC']['GOOD'] = Konfig.Graph(self._cfg['KONC_GOOD'])
+        self.graf['KONC']['BAD'] = Konfig.Graph(self._cfg['KONC_BAD'])
+        self.graf['KONC']['KOREKCIJA'] = Konfig.Graph(self._cfg['KONC_KOREKCIJA'])
+        self.graf['KONC']['KOREKCIJA_BAD'] = Konfig.Graph(self._cfg['KONC_KOREKCIJA_BAD'])
+        self.graf['KONC']['LEFT_LIMIT'] = Konfig.Graph(self._cfg['KONC_LEFT_LIMIT'])
+        self.graf['KONC']['RIGHT_LIMIT'] = Konfig.Graph(self._cfg['KONC_RIGHT_LIMIT'])
+        for zs in ['ZERO', 'SPAN']:
+            self.graf[zs] = {}
+            for komp in ['GOOD', 'BAD', 'LINE', 'KOREKCIJA', 'KOREKCIJA_BAD', 'TOP_LIMIT', 'LOW_LIMIT']:
+                self.graf[zs][komp] = Konfig.Graph(self._cfg[zs + '_' + komp])
         self.development = False
 
-    def read_config(self, datoteke):
-        cfg = configparser.ConfigParser()
-        for d in datoteke:
-            cfg.read(d)
-        return cfg
+    def save_to_file(self):
+        for sec in self.graf:
+            for sub in self.graf[sec]:
+                for opt, val in self.graf[sec][sub].get_options().items():
+                    self._cfg.set(sec + '_' + sub, opt, str(val))
+
+        with open(self.fname, mode='w') as fajl:
+            self._cfg.write(fajl)
+
+    def get(self, section, option):
+        return self._cfg.get(section, option)
 
 
 config = Konfig()
-
-
-class MainKonfig(object):
-    def __init__(self, cfgFile, parent=None):
-        self.cfg = configparser.ConfigParser()
-        self.LOG_LEVELS = {'DEBUG': logging.DEBUG,
-                           'INFO': logging.INFO,
-                           'WARNING': logging.WARNING,
-                           'ERROR': logging.ERROR,
-                           'CRITICAL': logging.CRITICAL}
-        try:
-            self.cfg.read(cfgFile)
-        except OSError:
-            msg = 'Kriticna pogreska kod citanja konfig filea, izlaz iz aplikacije.'
-            print(msg)
-            logging.error(msg, exc_info=True)
-            raise SystemExit(msg)
-
-    # LOGGING
-    @property
-    def logFile(self):
-        return self.cfg['LOG_SETUP']['file']
-
-    @property
-    def logMode(self):
-        val = self.cfg['LOG_SETUP']['mode']
-        if val in ['a', 'w']:
-            return val
-        else:
-            return 'a'
-
-    @property
-    def logLvl(self):
-        val = self.cfg['LOG_SETUP']['lvl']
-        return self.LOG_LEVELS.get(val, logging.ERROR)
-
-    # REST
-    @property
-    def restProgramMjerenja(self):
-        return self.cfg['REST']['program_mjerenja']
-
-    @property
-    def restSiroviPodaci(self):
-        return self.cfg['REST']['sirovi_podaci']
-
-    @property
-    def restStatusMap(self):
-        return self.cfg['REST']['status_map']
-
-    @property
-    def restZeroSpanPodaci(self):
-        return self.cfg['REST']['zero_span_podaci']
-
-    # icons
-    @property
-    def spanSelectIcon(self):
-        return self.cfg['ICONS']['spanSelectIcon']
-
-    @property
-    def xZoomIcon(self):
-        return self.cfg['ICONS']['xZoomIcon']
-
-
-class GrafKonfig(object):
-    def __init__(self, cfgFile, parent=None):
-        self.fajlname = cfgFile
-        self.cfg = configparser.ConfigParser()
-        try:
-            self.cfg.read(cfgFile)
-        except OSError:
-            msg = 'Kriticna pogreska kod citanja konfig filea za grafove, izlaz iz aplikacije.'
-            print(msg)
-            logging.error(msg, exc_info=True)
-            raise SystemExit(msg)
-
-    def save_to_file(self):
-        with open(self.fajlname, mode='w') as fajl:
-            self.cfg.write(fajl)
-
-    def get_konfig_option(self, section, option, fallback):
-        out = self.cfg.get(section, option, fallback=fallback)
-        if option in ['linecolor', 'markerfacecolor', 'markeredgecolor']:
-            if "#" in out:
-                # convert from hex
-                return colors.hex2color(out)
-            else:
-                # tuple zagrade treba maknuti...
-                rgba = out.replace('(', '')
-                rgba = rgba.replace(')', '')
-                rgba = rgba.split(sep=',')
-                rgba = [float(i.strip()) for i in rgba]
-                if len(rgba) in [3, 4]:
-                    return tuple(rgba)
-                else:
-                    return fallback
-        elif option in ['markersize', 'linewidth']:
-            return float(out)  # force float values for sizes
-        else:
-            return out
-
-    def set_konfig_option(self, section, option, val):
-        self.cfg.set(section, option, value=str(val))

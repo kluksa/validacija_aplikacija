@@ -84,7 +84,6 @@ class Dokument(QtCore.QObject):
 
     def set_korekcija(self, df):
         self._corr_df = df
-        print("jesam")
 
     def get_pickleBinary(self):
         mapa = {'kanal': self.aktivni_kanal,
@@ -130,7 +129,7 @@ class Dokument(QtCore.QObject):
         tdf['B'] = pd.to_numeric(tdf['B'])
         tdf['Sr'] = pd.to_numeric(tdf['Sr'])
         df = df.join(tdf[['A', 'B']].interpolate(method='time').join(tdf[['Sr']].fillna(method='ffill')))
-        df['korekcija'] = df.iloc[:, 0] * df['A'] + df['B']
+        df['korekcija'] = df['vrijednost'] * df['A'] + df['B']
         df['LDL'] = 3.33 * df['Sr'] / df['A']
         return df
 

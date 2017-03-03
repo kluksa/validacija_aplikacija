@@ -12,9 +12,7 @@ class KorekcijaTablica(QtGui.QTableView):
         super(KorekcijaTablica, self).__init__(parent)
         self.setModel(KorekcijaFrameModel())
         self.sredi_delegate_za_tablicu()
-        self.connect(self.model(),
-                     QtCore.SIGNAL('update_persistent_delegate'),
-                     self.sredi_delegate_za_tablicu)
+        self.model().update_persistent_delegate.connect(self.sredi_delegate_za_tablicu)
 
     def sredi_delegate_za_tablicu(self):
         model = self.model()
@@ -29,6 +27,7 @@ class KorekcijaTablica(QtGui.QTableView):
 
 class KorekcijaFrameModel(QtCore.QAbstractTableModel):
 
+    update_persistent_delegate = QtCore.pyqtSignal()
 
     def __init__(self,  frejm=None, parent=None):
         QtCore.QAbstractTableModel.__init__(self, parent)
@@ -65,7 +64,8 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
         self._dataFrejm.iloc[red, 2] = b
 
         self.layoutChanged.emit()
-        self.emit(QtCore.SIGNAL('update_persistent_delegate'))
+        self.update_persistent_delegate.emit()
+#        self.emit(QtCore.SIGNAL('update_persistent_delegate'))
 
     def rowCount(self, parent=QtCore.QModelIndex()):
         return len(self._dataFrejm)
@@ -92,7 +92,8 @@ class KorekcijaFrameModel(QtCore.QAbstractTableModel):
             self._dataFrejm.iloc[-1, 0] = ''
             # do the sort
             self.layoutChanged.emit()
-            self.emit(QtCore.SIGNAL('update_persistent_delegate'))
+            self.update_persistent_delegate.emit()
+#            self.emit(QtCore.SIGNAL('update_persistent_delegate'))
         else:
             pass
 

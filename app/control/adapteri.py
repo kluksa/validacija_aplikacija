@@ -30,7 +30,6 @@ class Adapter:
 
 
 class ZeroSpanAdapter(Adapter):
-    # REVIEW mislim da je ovo pogresno. Adapter bi trebao poslati jedan Z/S dataframe, a onda neka dokument radi sa njime sto hoce
     def __init__(self):
         super(Adapter, self).__init__()
         self.obavezni_json_stupci = ['vrsta', 'vrijeme', 'vrijednost', 'minDozvoljeno', 'maxDozvoljeno']
@@ -48,12 +47,10 @@ class ZeroSpanAdapter(Adapter):
         #       try:
         frejm = pd.read_json(ulaz, orient='records', convert_dates=['vrijeme'])
         if frejm.empty:
-            return pd.DataFrame(), pd.DataFrame()
+            return pd.DataFrame(columns=self.frame_stupci), pd.DataFrame(columns=self.frame_stupci)
         self._provjeri(frejm, self.obavezni_json_stupci)
         zero_frejm = self._napravi_frame(frejm[frejm['vrsta'] == 'Z'])
-        zero_frejm.rename(columns={'vrijednost': 'zero'}, inplace=True)
         span_frejm = self._napravi_frame(frejm[frejm['vrsta'] == 'S'])
-        span_frejm.rename(columns={'vrijednost': 'span'}, inplace=True)
         return zero_frejm, span_frejm
 
 
@@ -68,7 +65,7 @@ class ZeroSpanAdapter(Adapter):
 class PodatakAdapter(Adapter):
     def __init__(self):
         super().__init__()
-        self.frame_stupci = ['koncentracija', 'korekcija', 'flag', 'statusString',
+        self.frame_stupci = ['vrijednost', 'korekcija', 'flag', 'statusString',
                              'status', 'id', 'A', 'B', 'Sr', 'LDL']
         self.obavezni_json_stupci = ['vrijeme', 'id', 'vrijednost', 'statusString', 'valjan',
                                      'statusInt', 'nivoValidacije']
@@ -80,16 +77,15 @@ class PodatakAdapter(Adapter):
         #        try:
         df = pd.read_json(ulaz, orient='records')  # , convert_dates=['vrijeme'])
         if df.empty:
-            return pd.DataFrame()
+            return pd.DataFrame(columns=self.frame_stupci)
         df['vrijeme'] = pd.to_datetime(df['vrijeme'], unit='ms')
         self._provjeri(df, self.obavezni_json_stupci)
         df = df.set_index(df['vrijeme'])
         df.drop(['vrijeme', 'nivoValidacije'], inplace=True, axis=1)
-        rename_map = {'vrijednost': 'koncentracija',
-                      'valjan': 'flag',
+        rename_map = {'valjan': 'flag',
                       'statusInt': 'status'}
         df.rename(columns=rename_map, inplace=True)
-        df['koncentracija'] = df['koncentracija'].map(lambda x: x if x > -999 else np.NaN)
+        df['vrijednost'] = df['vrijednost'].map(lambda x: x if x > -999 else np.NaN)
         df['flag'] = df['flag'].map(lambda x: 1 if x else -1)
         df = pd.concat([df, pd.DataFrame(columns=['korekcija', 'A', 'B', 'Sr', 'LDL'])])
         df = df[self.frame_stupci]
