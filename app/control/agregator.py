@@ -36,7 +36,7 @@ class Agregator(object):
         frejm - pandas dataframe podataka (sa vremenskim indeksom)
         broj_u_satu - broj podataka u satu (za obuhvat)
         """
-        expectedCols = ['mean', 'valjan', 'count', 'obuhvat', 'status']
+        expectedCols = ['mean', 'sirovi_mean', 'valjan', 'count', 'obuhvat', 'status']
         #0. korak : pripremi output frejm
         agregirani = pd.DataFrame()
 
@@ -60,6 +60,8 @@ class Agregator(object):
         #4.korak
         agAverage = bezLosihStatusa['korekcija'].resample('H', closed='right', label='right').apply(self.helper_average)
         agregirani['mean'] = agAverage
+        agKoncentracija = bezLosihStatusa['koncentracija'].resample('H', closed='right', label='right').apply(self.helper_average)
+        agregirani['sirovi_mean'] = agKoncentracija
 
         #5.korak sredi stupac valjan
         agregirani['valjan'] = [self.test_valjanosti(i) for i in agregirani['status']]
